@@ -17,7 +17,7 @@ pub struct Cpu {
     bc: (u8, u8),
     de: (u8, u8),
     hl: (u8, u8),
-    stack_pointer: u16,
+    stack_pointer: Vec<u16>,
     program_counter: u16,
     instructions: [&'static str; 0x100],
     interrupts: Option<Interrupts>,
@@ -69,7 +69,7 @@ impl Cpu {
             bc: (0x00, 0x13),
             de: (0x00, 0xD8),
             hl: (0x01, 0x4D),
-            stack_pointer: 0xFFFE,
+            stack_pointer: vec![0xFFFE],
             program_counter: 0x100,
             instructions: [
                 "NOP",                   // 0x00
@@ -382,7 +382,7 @@ impl Cpu {
         4
     }
 
-    fn cpu_jp16(&mut self) -> u32 {
+    fn cpu_jp_16(&mut self) -> u32 {
         if self.get_flag(Flags::N) == 0 {
             let address = self.get_next_16();
             self.program_counter = address;
@@ -390,7 +390,7 @@ impl Cpu {
         16
     }
 
-    fn cpu_cp8(&mut self) -> u32 {
+    fn cpu_cp_8(&mut self) -> u32 {
         if self.get_flag(Flags::N) == 0 {
             let address = self.get_next_8();
             self.set_flag(Flags::Z, self.af.0 == address);
@@ -430,9 +430,9 @@ impl Cpu {
         1
     }
 
-    fn cpu_ld16_a(&mut self) -> u32 {
+    fn cpu_ld_16_a(&mut self) -> u32 {
         let address = self.get_next_16();
-        self.internal_memory[address as usize] = self.af.0;
+        self.internal_memory[(address) as usize] = self.af.0;
         self.program_counter += 2;
         4
     }
@@ -441,20 +441,52 @@ impl Cpu {
         if let Some(ref mut interrupts) = self.interrupts {
             interrupts.clear_master_enabled();
         }
-        self.program_counter += 1;
         1
+    }
+
+    fn cpu_ld_8_a(&mut self, offset: u16) -> u32 {
+        let address = self.get_next_8();
+        self.internal_memory[(offset + address as u16) as usize] = self.af.0;
+        self.program_counter += 1;
+        4
+    }
+
+    fn cpu_ld_a_8(&mut self, offset: u16) -> u32 {
+        let address = self.get_next_8();
+        self.af.0 = self.internal_memory[(offset + address as u16) as usize];
+        self.program_counter += 1;
+        12
+    }
+
+    fn cpu_call_16(&mut self) -> u32 {
+        let address = self.get_next_16();
+        self.program_counter += 2;
+        self.stack_pointer.push(self.program_counter);
+        self.program_counter = address as u16;
+        6
+    }
+
+    fn cpu_ld_b_a(&mut self) -> u32 {
+        self.bc.0 = self.af.0.clone();
+        self.program_counter += 1;
+        4
     }
 
     fn execute_opcode(&mut self, opcode: u8) -> u32 {
         match opcode {
             0x00 => self.cpu_nop(),
-            0xc3 => self.cpu_jp16(),
-            0xfe => self.cpu_cp8(),
+            0xc3 => self.cpu_jp_16(),
+            0xfe => self.cpu_cp_8(),
             0x28 => self.cpu_jr_cc(Flags::Z),
             0xaf => self.cpu_xor(self.af.0),
             0x18 => self.cpu_jr(),
-            0xea => self.cpu_ld16_a(),
+            0xea => self.cpu_ld_16_a(),
             0xf3 => self.cpu_di(),
+            0xe0 => self.cpu_ld_8_a(0xff00),
+            0x3e => self.cpu_ld_a_8(0),
+            0xcd => self.cpu_call_16(),
+            0xf0 => self.cpu_ld_a_8(0xff00),
+            0x47 => self.cpu_ld_b_a(),
             _ => unimplemented!(),
         }
     }
@@ -494,7 +526,8 @@ impl Cpu {
         );
         println!(
             "PC: {:x}, SP: {:x}",
-            self.program_counter, self.stack_pointer
+            self.program_counter,
+            self.stack_pointer[self.stack_pointer.len() - 1]
         );
         println!(
             "Z: {}, N: {}, H: {}, C: {}",
