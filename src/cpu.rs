@@ -1,20 +1,10 @@
+use super::constants::*;
 use super::interrupts::Interrupts;
+use super::memory::Memory;
 use super::utils::get_bit_at;
 use byteorder::{ByteOrder, LittleEndian};
-const MAXCYCLES: u32 = 69905;
-
-#[derive(Debug)]
-enum MBC {
-    NONE,
-    MB1,
-    MB2,
-}
-
-#[derive(Debug)]
-enum Bmode {
-    RAM,
-    ROM,
-}
+use std::cell::RefCell;
+use std::rc::Rc;
 
 enum Flags {
     Z,
@@ -24,88 +14,40 @@ enum Flags {
 }
 
 pub struct Cpu {
+    memory: Rc<RefCell<Memory>>,
+    interrupts: Rc<RefCell<Interrupts>>,
     frame_cycles: u32,
     total_cycles: u32,
-    cartridge_memory: Vec<u8>,
-    internal_memory: [u8; 0x10000],
-    ram_memory: [u8; 0x8000],
-    current_rom_bank: u8,
-    current_ram_bank: u8,
-    memory_bank_type: MBC,
-    is_ram_enabled: bool,
-    banking_mode: Bmode,
-    af: (u8, u8),
-    bc: (u8, u8),
-    de: (u8, u8),
-    hl: (u8, u8),
     stack_pointer: u16,
     program_counter: u16,
     instructions: [&'static str; 0x100],
-    interrupts: Option<Interrupts>,
+    a: u8,
+    f: u8,
+    b: u8,
+    c: u8,
+    d: u8,
+    e: u8,
+    h: u8,
+    l: u8,
 }
 
 impl Cpu {
-    pub fn new(cartridge_memory: Vec<u8>) -> Self {
-        let mut internal_memory = [0; 0x10000];
-        internal_memory[0xFF05] = 0x00;
-        internal_memory[0xFF06] = 0x00;
-        internal_memory[0xFF07] = 0x00;
-        internal_memory[0xFF10] = 0x80;
-        internal_memory[0xFF11] = 0xBF;
-        internal_memory[0xFF12] = 0xF3;
-        internal_memory[0xFF14] = 0xBF;
-        internal_memory[0xFF16] = 0x3F;
-        internal_memory[0xFF17] = 0x00;
-        internal_memory[0xFF19] = 0xBF;
-        internal_memory[0xFF1A] = 0x7F;
-        internal_memory[0xFF1B] = 0xFF;
-        internal_memory[0xFF1C] = 0x9F;
-        internal_memory[0xFF1E] = 0xBF;
-        internal_memory[0xFF20] = 0xFF;
-        internal_memory[0xFF21] = 0x00;
-        internal_memory[0xFF22] = 0x00;
-        internal_memory[0xFF23] = 0xBF;
-        internal_memory[0xFF24] = 0x77;
-        internal_memory[0xFF25] = 0xF3;
-        internal_memory[0xFF26] = 0xF1;
-        internal_memory[0xFF40] = 0x91;
-        internal_memory[0xFF42] = 0x00;
-        internal_memory[0xFF43] = 0x00;
-        internal_memory[0xFF45] = 0x00;
-        internal_memory[0xFF47] = 0xFC;
-        internal_memory[0xFF48] = 0xFF;
-        internal_memory[0xFF49] = 0xFF;
-        internal_memory[0xFF4A] = 0x00;
-        internal_memory[0xFF4B] = 0x00;
-        internal_memory[0xFFFF] = 0x00;
-
-        for address in 0x0000..0x7FFF {
-            internal_memory[address] = cartridge_memory[address]
-        }
-
-        let memory_bank_type = match cartridge_memory[0x147] {
-            1 | 2 | 3 => MBC::MB1,
-            5 | 6 => MBC::MB2,
-            _ => MBC::NONE,
-        };
-
+    pub fn new(memory: Rc<RefCell<Memory>>, interrupts: Rc<RefCell<Interrupts>>) -> Self {
         Self {
+            memory,
+            interrupts,
             frame_cycles: 0,
             total_cycles: 0,
-            memory_bank_type,
-            current_rom_bank: 1,
-            cartridge_memory,
-            internal_memory,
-            ram_memory: [0; 0x8000],
-            current_ram_bank: 0,
-            is_ram_enabled: false,
-            banking_mode: Bmode::ROM,
-            af: (0x01, 0xB0),
-            bc: (0x00, 0x13),
-            de: (0x00, 0xD8),
-            hl: (0x01, 0x4D),
             stack_pointer: 0xFFFE,
             program_counter: 0x100,
+            a: 0x01,
+            f: 0xB0,
+            b: 0x00,
+            c: 0x13,
+            d: 0x00,
+            e: 0xD8,
+            h: 0x01,
+            l: 0x4D,
             instructions: [
                 "NOP",                   // 0x00
                 "LD BC, 0x{}",           // 0x01
@@ -364,108 +306,15 @@ impl Cpu {
                 "CP 0x{}",               // 0xfe
                 "RST 0x38",              // 0xff
             ],
-            interrupts: None,
-        }
-    }
-
-    pub fn load(&mut self, interrupts: Interrupts) {
-        self.interrupts = Some(interrupts);
-    }
-
-    fn read_memory(&self, address: u16) -> u8 {
-        // From memory bank
-        if (address >= 0x4000) && (address <= 0x7FFF) {
-            let mb_address = address - 0x4000;
-            return self
-                .cartridge_memory
-                .get((mb_address + (self.current_rom_bank as u16 * 0x4000)) as usize)
-                .unwrap()
-                .clone();
-        }
-        // from RAM
-        else if (address >= 0xA000) && (address <= 0xBFFF) {
-            let ram_address = address - 0xA000;
-            return self.ram_memory
-                [(ram_address + (self.current_ram_bank as u16 * 0x2000)) as usize];
-        }
-
-        self.internal_memory[address as usize]
-    }
-    fn read_memory_range(&self, range: std::ops::Range<usize>) -> &[u8] {
-        self.internal_memory.get(range).unwrap()
-    }
-    fn write_internal_memory(&mut self, address: u16, data: u8) {
-        if address < 0x8000 {
-            match self.memory_bank_type {
-                MBC::NONE if address > 0x8000 => {
-                    panic!("Trying to write to address greater than 0x8000")
-                }
-                MBC::MB1 | MBC::MB2 if address <= 0x7fff => {
-                    panic!("Can't write, the cartridge data is there")
-                }
-                MBC::MB1 | MBC::MB2 if address <= 0x1fff => match address & 0xf {
-                    0x00 => self.is_ram_enabled = true,
-                    0x0a => self.is_ram_enabled = false,
-                    _ => {}
-                },
-                MBC::MB1 | MBC::MB2 if (address >= 0x2000) && (address <= 0x3fff) => {
-                    let lower_bits = (address & 0xf) as u8;
-                    let upper_bits = self.current_rom_bank & 0xe0;
-                    let mut next_rom_bank = upper_bits | lower_bits;
-                    if next_rom_bank == 0 {
-                        next_rom_bank += 1;
-                    }
-                    self.current_rom_bank = next_rom_bank;
-                }
-                MBC::MB1 if (address >= 0x4000) && (address <= 0x5fff) => match self.banking_mode {
-                    Bmode::ROM => {
-                        let upper_bits = (address & 0x1f) as u8;
-                        let lower_bits = self.current_rom_bank & 0xe1;
-                        let mut next_rom_bank = upper_bits | lower_bits;
-                        if next_rom_bank == 0 {
-                            next_rom_bank += 1;
-                        }
-                        self.current_rom_bank = next_rom_bank;
-                    }
-                    Bmode::RAM => {
-                        self.current_ram_bank = (address & 0x3) as u8;
-                    }
-                },
-                MBC::MB1 if (address >= 0x6000) && (address <= 0x7FFF) => match address & 0x3 {
-                    0x00 => self.banking_mode = Bmode::ROM,
-                    0x01 => self.banking_mode = Bmode::RAM,
-                    _ => panic!("Unsupported banking mode"),
-                },
-                _ => {
-                    println!("address: {:x}", address);
-                    println!("bank type: {:?}", self.memory_bank_type);
-                    println!("banking mode: {:?}", self.banking_mode);
-                    println!("is ram enabled: {:?}", self.is_ram_enabled);
-                    println!("current ram bank: {:x}", self.current_rom_bank);
-                    println!("current rom bank: {:x}", self.current_ram_bank);
-                    panic!("MBC case not supported")
-                }
-            }
-        } else if self.is_ram_enabled && (address >= 0xa000) && (address <= 0xbfff) {
-            let bank_address = address - 0xa000;
-            self.ram_memory[(bank_address + self.current_ram_bank as u16 * 0x2000) as usize] = data;
-        } else if (address >= 0xe000) && (address <= 0xfdff) {
-            self.internal_memory[address as usize] = data;
-            self.write_internal_memory(address - 0x2000, data);
-            return;
-        } else if (address >= 0xfea0) && (address <= 0xfefe) {
-            panic!("Trying to write to restricted memory");
-        } else {
-            self.internal_memory[address as usize] = data;
         }
     }
 
     fn get_flag(&self, flag: Flags) -> u8 {
         match flag {
-            Flags::Z => get_bit_at(self.af.1, 7) as u8,
-            Flags::N => get_bit_at(self.af.1, 6) as u8,
-            Flags::H => get_bit_at(self.af.1, 5) as u8,
-            Flags::C => get_bit_at(self.af.1, 4) as u8,
+            Flags::Z => get_bit_at(self.f, 7) as u8,
+            Flags::N => get_bit_at(self.f, 6) as u8,
+            Flags::H => get_bit_at(self.f, 5) as u8,
+            Flags::C => get_bit_at(self.f, 4) as u8,
         }
     }
     fn set_flag(&mut self, flag: Flags, value: bool) {
@@ -475,15 +324,17 @@ impl Cpu {
             Flags::H => 0x20,
             Flags::C => 0x10,
         };
-        match value {
-            true => self.af.1 |= mask,
-            false => self.af.1 &= !(mask),
+        if value {
+            self.f |= mask;
+        } else {
+            self.f &= !(mask);
         };
     }
 
     fn get_next_16(&self) -> u16 {
         let c = self.get_counter() as usize;
-        let address = self.read_memory_range(c..(c + 2));
+        let mem = self.memory.borrow();
+        let address = mem.read_range(c..(c + 2));
         let data = [address[0], address[1]];
         LittleEndian::read_u16(&data)
     }
@@ -508,10 +359,10 @@ impl Cpu {
     fn cpu_cp_8(&mut self) -> u32 {
         if self.get_flag(Flags::N) == 0 {
             let address = self.get_next_8();
-            self.set_flag(Flags::Z, self.af.0 == address as u8);
+            self.set_flag(Flags::Z, self.a == address as u8);
             self.set_flag(Flags::N, true);
-            self.set_flag(Flags::H, (self.af.0 & 0x0f) < (address as u8 & 0x0f));
-            self.set_flag(Flags::C, self.af.0 < address as u8);
+            self.set_flag(Flags::H, (self.a & 0x0f) < (address as u8 & 0x0f));
+            self.set_flag(Flags::C, self.a < address as u8);
             self.program_counter += 1;
         } else {
             self.program_counter += 1;
@@ -537,35 +388,38 @@ impl Cpu {
         3
     }
     fn cpu_xor(&mut self, value: u8) -> u32 {
-        let result = value as u16 ^ self.af.0 as u16;
+        let result = value as u16 ^ self.a as u16;
         self.set_flag(Flags::Z, result == 0);
         self.set_flag(Flags::N, false);
         self.set_flag(Flags::H, false);
         self.set_flag(Flags::C, false);
-        self.af.0 = 0;
+        self.a = 0;
         1
     }
     fn cpu_ld_16_a(&mut self) -> u32 {
         let address = self.get_next_16();
-        self.write_internal_memory(address, self.af.0);
+        self.memory.borrow_mut().write(address, self.a);
         self.program_counter += 2;
         4
     }
     fn cpu_di(&mut self) -> u32 {
-        if let Some(ref mut interrupts) = self.interrupts {
-            interrupts.clear_master_enabled();
-        }
+        self.interrupts.borrow_mut().clear_master_enabled();
         1
     }
     fn cpu_ld_8_a(&mut self, offset: u16) -> u32 {
         let address = self.get_next_8();
-        self.write_internal_memory(offset.wrapping_add(address as u16), self.af.0);
+        self.memory
+            .borrow_mut()
+            .write(offset.wrapping_add(address as u16), self.a);
         self.program_counter += 1;
         4
     }
     fn cpu_ld_a_8(&mut self, offset: u16) -> u32 {
         let address = self.get_next_8();
-        self.af.0 = self.read_memory(offset.wrapping_add(address as u16));
+        self.a = self
+            .memory
+            .borrow()
+            .read(offset.wrapping_add(address as u16));
         self.program_counter += 1;
         12
     }
@@ -577,7 +431,7 @@ impl Cpu {
         6
     }
     fn cpu_ld_b_a(&mut self) -> u32 {
-        self.bc.0 = self.af.0.clone();
+        self.b = self.a;
         4
     }
     fn cpu_cb(&mut self) -> u32 {
@@ -587,7 +441,7 @@ impl Cpu {
         4
     }
     fn cpu_res_b_a(&mut self, bit: u8) -> u32 {
-        self.af.0 &= !(bit);
+        self.a &= !(bit);
         8
     }
 
@@ -609,7 +463,7 @@ impl Cpu {
                 let z = self.get_flag(Flags::Z);
                 self.cpu_jr_cc(z == 1)
             }
-            0xaf => self.cpu_xor(self.af.0),
+            0xaf => self.cpu_xor(self.a),
             0x18 => self.cpu_jr(),
             0xea => self.cpu_ld_16_a(),
             0xf3 => self.cpu_di(),
@@ -630,11 +484,11 @@ impl Cpu {
     }
 
     fn read_memory_at_current_location(&self) -> u8 {
-        self.read_memory(self.get_counter())
+        self.memory.borrow().read(self.get_counter())
     }
 
     fn execute_next_opcode(&mut self) -> u32 {
-        let opcode = self.read_memory(self.get_counter());
+        let opcode = self.memory.borrow().read(self.get_counter());
         self.program_counter += 1;
         self.execute_opcode(opcode)
     }
@@ -643,7 +497,7 @@ impl Cpu {
         self.program_counter
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self) -> u32 {
         self.frame_cycles = 0;
         while self.frame_cycles < MAXCYCLES {
             self.print_debug_info();
@@ -651,17 +505,18 @@ impl Cpu {
             self.frame_cycles += cycles;
         }
         self.total_cycles += self.frame_cycles;
+        self.frame_cycles
     }
 
     fn print_debug_info(&self) {
         println!("CPU: -------------------------------");
         println!(
             "A: {:x}, B: {:x}, C: {:x}, D: {:x}",
-            self.af.0, self.bc.0, self.bc.1, self.de.0
+            self.a, self.b, self.c, self.d
         );
         println!(
             "E: {:x}, F: {:x}, H: {:x}, L: {:x}",
-            self.de.1, self.af.1, self.hl.0, self.hl.1
+            self.e, self.f, self.h, self.l
         );
         println!(
             "PC: {:x}, SP: {:x}",
