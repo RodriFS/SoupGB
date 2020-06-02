@@ -1,3 +1,4 @@
+#[derive(Default)]
 pub struct Interrupts {
     master_enabled: u8,
 }

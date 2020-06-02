@@ -2,6 +2,7 @@ use gba::constants::*;
 use gba::cpu::Cpu;
 use gba::interrupts::Interrupts;
 use gba::memory::Memory;
+use gba::timers::Timers;
 use std::cell::RefCell;
 use std::fs::File;
 use std::io::Read;
@@ -9,7 +10,7 @@ use std::rc::Rc;
 
 struct Emulator {
     cpu: Cpu,
-    memory: Rc<RefCell<Memory>>,
+    timers: Timers, //memory: Rc<RefCell<Memory>>,
 }
 
 impl Emulator {
@@ -18,7 +19,7 @@ impl Emulator {
         let memory = Rc::new(RefCell::new(Memory::new(buffer)));
         Self {
             cpu: Cpu::new(Rc::clone(&memory), Rc::clone(&interrupts)),
-            memory,
+            timers: Timers::new(Rc::clone(&memory)), //memory,
         }
     }
 }
@@ -32,6 +33,7 @@ fn main() {
 
     loop {
         let frame_cycles = emulator.cpu.update();
+        emulator.timers.update(frame_cycles);
         std::thread::sleep(refresh);
     }
 }

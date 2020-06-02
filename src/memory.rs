@@ -1,5 +1,3 @@
-use super::timers::Timers;
-
 #[derive(Debug)]
 pub enum MBC {
   NONE,
@@ -14,8 +12,6 @@ pub enum Bmode {
 }
 
 pub struct Memory {
-  pub timers: Timers,
-
   pub cartridge_memory: Vec<u8>,
   pub internal_memory: [u8; 0x10000],
   pub ram_memory: [u8; 0x8000],
@@ -69,7 +65,6 @@ impl Memory {
       _ => MBC::NONE,
     };
     Self {
-      timers: Timers::new(),
       memory_bank_type,
       current_rom_bank: 1,
       cartridge_memory,
