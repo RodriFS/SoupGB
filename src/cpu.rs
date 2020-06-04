@@ -18,8 +18,6 @@ pub struct Cpu {
     interrupts: Rc<RefCell<Interrupts>>,
     frame_cycles: u32,
     total_cycles: u32,
-    stack_pointer: u16,
-    program_counter: u16,
     instructions: [&'static str; 0x100],
     a: u8,
     f: u8,
@@ -38,8 +36,6 @@ impl Cpu {
             interrupts,
             frame_cycles: 0,
             total_cycles: 0,
-            stack_pointer: 0xFFFE,
-            program_counter: 0x100,
             a: 0x01,
             f: 0xB0,
             b: 0x00,
@@ -308,7 +304,16 @@ impl Cpu {
             ],
         }
     }
-
+    fn store_into_hl(&mut self, data: u16) {
+        let bits = data.to_be_bytes();
+        self.h = bits[0];
+        self.l = bits[1];
+    }
+    fn store_into_de(&mut self, data: u16) {
+        let bits = data.to_be_bytes();
+        self.d = bits[0];
+        self.e = bits[1];
+    }
     fn get_flag(&self, flag: Flags) -> u8 {
         match flag {
             Flags::Z => get_bit_at(self.f, 7) as u8,
@@ -332,7 +337,7 @@ impl Cpu {
     }
 
     fn get_next_16(&self) -> u16 {
-        let c = self.get_counter() as usize;
+        let c = self.memory.borrow().get_program_counter() as usize;
         let mem = self.memory.borrow();
         let address = mem.read_range(c..(c + 2));
         let data = [address[0], address[1]];
@@ -352,7 +357,7 @@ impl Cpu {
     fn cpu_jp_16(&mut self) -> u32 {
         if self.get_flag(Flags::N) == 0 {
             let address = self.get_next_16();
-            self.program_counter = address;
+            self.memory.borrow_mut().set_program_counter(address);
         }
         16
     }
@@ -363,28 +368,33 @@ impl Cpu {
             self.set_flag(Flags::N, true);
             self.set_flag(Flags::H, (self.a & 0x0f) < (address as u8 & 0x0f));
             self.set_flag(Flags::C, self.a < address as u8);
-            self.program_counter += 1;
+            self.memory.borrow_mut().increment_program_counter(1);
         } else {
-            self.program_counter += 1;
+            self.memory.borrow_mut().increment_program_counter(1);
         }
         8
     }
     fn cpu_jr_cc(&mut self, condition: bool) -> u32 {
         if condition {
             let address = self.get_next_8();
-            self.program_counter = self.program_counter.wrapping_add(address as u16);
-            self.program_counter += 1;
+            let new_pc = self
+                .memory
+                .borrow_mut()
+                .add_to_program_counter(address as u16);
+            self.memory.borrow_mut().set_program_counter(new_pc);
+            self.memory.borrow_mut().increment_program_counter(1);
             3
         } else {
-            self.program_counter += 1;
+            self.memory.borrow_mut().increment_program_counter(1);
             2
         }
     }
     fn cpu_jr(&mut self) -> u32 {
         let address = self.get_next_8();
         println!("{:x}", address);
-        self.program_counter += address as u16;
-        self.program_counter += 1;
+        self.memory
+            .borrow_mut()
+            .increment_program_counter(address as u16 + 1);
         3
     }
     fn cpu_xor(&mut self, value: u8) -> u32 {
@@ -399,7 +409,7 @@ impl Cpu {
     fn cpu_ld_16_a(&mut self) -> u32 {
         let address = self.get_next_16();
         self.memory.borrow_mut().write(address, self.a);
-        self.program_counter += 2;
+        self.memory.borrow_mut().increment_program_counter(2);
         4
     }
     fn cpu_di(&mut self) -> u32 {
@@ -411,7 +421,7 @@ impl Cpu {
         self.memory
             .borrow_mut()
             .write(offset.wrapping_add(address as u16), self.a);
-        self.program_counter += 1;
+        self.memory.borrow_mut().increment_program_counter(1);
         4
     }
     fn cpu_ld_a_8(&mut self, offset: u16) -> u32 {
@@ -420,14 +430,15 @@ impl Cpu {
             .memory
             .borrow()
             .read(offset.wrapping_add(address as u16));
-        self.program_counter += 1;
+        self.memory.borrow_mut().increment_program_counter(1);
         12
     }
     fn cpu_call_16(&mut self) -> u32 {
         let address = self.get_next_16();
-        self.program_counter += 2;
-        self.stack_pointer -= 2;
-        self.program_counter = address as u16;
+        self.memory.borrow_mut().increment_program_counter(2);
+
+        self.memory.borrow_mut().push_to_stack(address);
+        self.memory.borrow_mut().set_program_counter(address);
         6
     }
     fn cpu_ld_b_a(&mut self) -> u32 {
@@ -437,14 +448,30 @@ impl Cpu {
     fn cpu_cb(&mut self) -> u32 {
         let address = self.get_next_8();
         println!("Executing callback opcode {:x}", address);
-        self.execute_opcode(address as u8);
+        self.execute_opcode(address as u8, true);
         4
     }
     fn cpu_res_b_a(&mut self, bit: u8) -> u32 {
         self.a &= !(bit);
         8
     }
-
+    fn cpu_ld_hl_16(&mut self) -> u32 {
+        let address = self.get_next_16();
+        self.store_into_hl(address);
+        12
+    }
+    fn cpu_ld_de_16(&mut self) -> u32 {
+        let address = self.get_next_16();
+        self.store_into_de(address);
+        12
+    }
+    fn cpu_ret_cc(&mut self, condition: bool) -> u32 {
+        if condition {
+            let stack_data = self.memory.borrow_mut().pop_from_stack();
+            self.memory.borrow_mut().set_program_counter(stack_data);
+        }
+        8
+    }
     // fn add_a(&mut self) -> u32 {
     //     let result = self.af.0 * 2;
     //     self.set_flag(Flags::Z, self.af.0 == result);
@@ -454,47 +481,58 @@ impl Cpu {
     //     4
     // }
 
-    fn execute_opcode(&mut self, opcode: u8) -> u32 {
+    fn execute_opcode(&mut self, opcode: u8, is_callback: bool) -> u32 {
         match opcode {
             0x00 => self.cpu_nop(),
-            0xc3 => self.cpu_jp_16(),
-            0xfe => self.cpu_cp_8(),
+            0x11 => self.cpu_ld_de_16(),
+            0x18 => self.cpu_jr(),
+            0x20 => {
+                let z = self.get_flag(Flags::Z);
+                self.cpu_jr_cc(z == 0)
+            }
+            0x21 => self.cpu_ld_hl_16(),
             0x28 => {
                 let z = self.get_flag(Flags::Z);
                 self.cpu_jr_cc(z == 1)
             }
-            0xaf => self.cpu_xor(self.a),
-            0x18 => self.cpu_jr(),
-            0xea => self.cpu_ld_16_a(),
-            0xf3 => self.cpu_di(),
-            0xe0 => self.cpu_ld_8_a(0xff00),
             0x3e => self.cpu_ld_a_8(0),
-            0xcd => self.cpu_call_16(),
-            0xf0 => self.cpu_ld_a_8(0xff00),
+            0x40 => 4,
             0x47 => self.cpu_ld_b_a(),
-            0xcb => self.cpu_cb(),
-            0x87 => self.cpu_res_b_a(0x1),
-            0x20 => {
-                let f = self.get_flag(Flags::Z);
-                self.cpu_jr_cc(f == 0)
-            }
             // 0x87 => self.add_a(),
-            _ => unimplemented!(),
+            0xaf => self.cpu_xor(self.a),
+            0xc0 => {
+                let z = self.get_flag(Flags::Z);
+                self.cpu_ret_cc(z == 0)
+            }
+            0xc3 => self.cpu_jp_16(),
+            0xcb => self.cpu_cb(),
+            0xcd => self.cpu_call_16(),
+            0xe0 => self.cpu_ld_8_a(0xff00),
+            0xea => self.cpu_ld_16_a(),
+            0xf0 => self.cpu_ld_a_8(0xff00),
+            0xf3 => self.cpu_di(),
+            0xfe => self.cpu_cp_8(),
+            0x87 if is_callback => self.cpu_res_b_a(0x1),
+            c => {
+                println!("Not implemented: {:x}", c);
+                6
+            }
         }
     }
 
     fn read_memory_at_current_location(&self) -> u8 {
-        self.memory.borrow().read(self.get_counter())
+        self.memory
+            .borrow()
+            .read(self.memory.borrow().get_program_counter())
     }
 
     fn execute_next_opcode(&mut self) -> u32 {
-        let opcode = self.memory.borrow().read(self.get_counter());
-        self.program_counter += 1;
-        self.execute_opcode(opcode)
-    }
-
-    fn get_counter(&self) -> u16 {
-        self.program_counter
+        let opcode = self
+            .memory
+            .borrow()
+            .read(self.memory.borrow().get_program_counter());
+        self.memory.borrow_mut().increment_program_counter(1);
+        self.execute_opcode(opcode, false)
     }
 
     pub fn update(&mut self) -> u32 {
@@ -509,6 +547,9 @@ impl Cpu {
     }
 
     fn print_debug_info(&self) {
+        if !DEBUG {
+            return;
+        }
         println!("CPU: -------------------------------");
         println!(
             "A: {:x}, B: {:x}, C: {:x}, D: {:x}",
@@ -520,7 +561,8 @@ impl Cpu {
         );
         println!(
             "PC: {:x}, SP: {:x}",
-            self.program_counter, self.stack_pointer
+            self.memory.borrow().get_program_counter(),
+            self.memory.borrow().get_stack_pointer()
         );
         println!(
             "Z: {}, N: {}, H: {}, C: {}",
@@ -536,7 +578,7 @@ impl Cpu {
             self.get_instruction_at(opcode)
         );
         println!("Total Cycles: {}", self.total_cycles);
-        if self.program_counter == 0x2817 {
+        if self.memory.borrow().get_program_counter() == 0x2817 {
             println!("WE HAVE VISUALS");
             println!("WE HAVE VISUALS");
             println!("WE HAVE VISUALS");
