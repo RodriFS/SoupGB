@@ -1,5 +1,6 @@
-use byteorder::{ByteOrder, LittleEndian};
+use byteorder::{BigEndian, ByteOrder};
 
+#[derive(Debug)]
 pub enum MBC {
     NONE,
     MB1,
@@ -23,43 +24,31 @@ pub struct Memory {
     pub banking_mode: Bmode,
     stack_pointer: u16,
     program_counter: u16,
+    link_port: Vec<u8>,
 }
 
 impl Memory {
     pub fn new(cartridge_memory: Vec<u8>) -> Self {
         let mut internal_memory = [0; 0x10000];
-        internal_memory[0xFF05] = 0x00;
-        internal_memory[0xFF06] = 0x00;
-        internal_memory[0xFF07] = 0x00;
         internal_memory[0xFF10] = 0x80;
         internal_memory[0xFF11] = 0xBF;
         internal_memory[0xFF12] = 0xF3;
         internal_memory[0xFF14] = 0xBF;
         internal_memory[0xFF16] = 0x3F;
-        internal_memory[0xFF17] = 0x00;
         internal_memory[0xFF19] = 0xBF;
         internal_memory[0xFF1A] = 0x7F;
         internal_memory[0xFF1B] = 0xFF;
         internal_memory[0xFF1C] = 0x9F;
         internal_memory[0xFF1E] = 0xBF;
         internal_memory[0xFF20] = 0xFF;
-        internal_memory[0xFF21] = 0x00;
-        internal_memory[0xFF22] = 0x00;
         internal_memory[0xFF23] = 0xBF;
         internal_memory[0xFF24] = 0x77;
         internal_memory[0xFF25] = 0xF3;
         internal_memory[0xFF26] = 0xF1;
         internal_memory[0xFF40] = 0x91;
-        internal_memory[0xFF42] = 0x00;
-        internal_memory[0xFF43] = 0x00;
-        internal_memory[0xFF45] = 0x00;
         internal_memory[0xFF47] = 0xFC;
         internal_memory[0xFF48] = 0xFF;
         internal_memory[0xFF49] = 0xFF;
-        internal_memory[0xFF4A] = 0x00;
-        internal_memory[0xFF4B] = 0x00;
-        internal_memory[0xFFFF] = 0x00;
-
         internal_memory[0x0000..0x7FFF].clone_from_slice(&cartridge_memory[0x0000..0x7FFF]);
 
         let memory_bank_type = match cartridge_memory[0x147] {
@@ -78,6 +67,7 @@ impl Memory {
             banking_mode: Bmode::ROM,
             stack_pointer: 0xfffe,
             program_counter: 0x100,
+            link_port: Vec::new(),
         }
     }
 
@@ -130,25 +120,38 @@ impl Memory {
     }
 
     pub fn push_to_stack(&mut self, data: u16) {
-        self.stack_pointer -= 2;
+        self.decrement_stack_counter(2);
         let bytes = data.to_be_bytes();
         self.write(self.stack_pointer, bytes[0]);
-        self.write(self.stack_pointer + 1, bytes[1]);
+        self.write(self.stack_pointer.wrapping_add(1), bytes[1]);
     }
 
     pub fn pop_from_stack(&mut self) -> u16 {
-        self.stack_pointer += 2;
         let byte1 = self.read(self.stack_pointer);
-        let byte2 = self.read(self.stack_pointer);
-        LittleEndian::read_u16(&[byte1, byte2])
+        let byte2 = self.read(self.stack_pointer.wrapping_add(1));
+        let data = BigEndian::read_u16(&[byte1, byte2]);
+        self.increment_stack_counter(2);
+        data
     }
 
     pub fn set_program_counter(&mut self, address: u16) {
         self.program_counter = address;
     }
 
+    pub fn set_stack_pointer(&mut self, address: u16) {
+        self.stack_pointer = address;
+    }
+
     pub fn increment_program_counter(&mut self, increment: u16) {
-        self.program_counter += increment;
+        self.program_counter = self.program_counter.wrapping_add(increment);
+    }
+
+    pub fn increment_stack_counter(&mut self, increment: u16) {
+        self.stack_pointer = self.stack_pointer.wrapping_add(increment);
+    }
+
+    pub fn decrement_stack_counter(&mut self, decrement: u16) {
+        self.stack_pointer = self.stack_pointer.wrapping_sub(decrement);
     }
 
     pub fn add_to_program_counter(&mut self, addition: u16) -> u16 {
@@ -170,7 +173,7 @@ impl Memory {
                     panic!("Trying to write to address greater than 0x8000")
                 }
                 MBC::MB1 | MBC::MB2 if address <= 0x7fff => {
-                    panic!("Can't write, the cartridge data is there")
+                    //panic!("Can't write, the cartridge data is there")
                 }
                 MBC::MB1 | MBC::MB2 if address <= 0x1fff => match address & 0xf {
                     0x00 => self.set_is_ram_enabled(true),
@@ -214,9 +217,15 @@ impl Memory {
             self.set_rom(address, data);
             self.write(address - 0x2000, data);
         } else if (address >= 0xfea0) && (address <= 0xfefe) {
-            panic!("Trying to write to restricted memory");
+        } else if address == 0xff01 {
+            println!("{:x}", data);
+            self.link_port.push(data);
+            self.set_rom(address, data);
+            self.set_rom(0xff02, 0x81);
         } else if address == 0xff04 {
             self.set_rom(0xff04, 0);
+        } else if address == 0xff44 {
+            self.set_rom(address, 0);
         } else {
             self.set_rom(address, data);
         }

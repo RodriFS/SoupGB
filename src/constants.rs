@@ -8,3 +8,4 @@ pub const TIMER_CONTROL_ADDRESS: u16 = 0xff07;
 pub const TIMER_MODULO_ADDRESS: u16 = 0xff06;
 
 pub const DEBUG: bool = false;
+pub const STEPS: bool = false;
