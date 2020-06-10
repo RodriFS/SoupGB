@@ -122,14 +122,14 @@ impl Memory {
     pub fn push_to_stack(&mut self, data: u16) {
         self.decrement_stack_counter(2);
         let bytes = data.to_be_bytes();
-        self.write(self.stack_pointer, bytes[0]);
-        self.write(self.stack_pointer.wrapping_add(1), bytes[1]);
+        self.write(self.stack_pointer, bytes[1]);
+        self.write(self.stack_pointer.wrapping_add(1), bytes[0]);
     }
 
     pub fn pop_from_stack(&mut self) -> u16 {
         let byte1 = self.read(self.stack_pointer);
         let byte2 = self.read(self.stack_pointer.wrapping_add(1));
-        let data = BigEndian::read_u16(&[byte1, byte2]);
+        let data = BigEndian::read_u16(&[byte2, byte1]);
         self.increment_stack_counter(2);
         data
     }
@@ -228,6 +228,12 @@ impl Memory {
             self.set_rom(address, 0);
         } else {
             self.set_rom(address, data);
+        }
+        /////
+        if self.internal_memory[0xff02] == 0x81 {
+            let c = self.internal_memory[0xff01] as char;
+            println!("{}", c);
+            self.internal_memory[0xff02] = 0x0;
         }
     }
 }

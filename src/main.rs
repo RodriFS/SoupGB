@@ -1,5 +1,6 @@
 use gba::constants::*;
 use gba::cpu::Cpu;
+use gba::gpu::Gpu;
 use gba::interrupts::Interrupts;
 use gba::memory::Memory;
 use gba::timers::Timers;
@@ -12,6 +13,7 @@ struct Emulator {
     cpu: Cpu,
     timers: Timers, //memory: Rc<RefCell<Memory>>,
     interrupts: Rc<RefCell<Interrupts>>,
+    gpu: Gpu,
 }
 
 impl Emulator {
@@ -21,6 +23,7 @@ impl Emulator {
         Self {
             cpu: Cpu::new(Rc::clone(&memory), Rc::clone(&interrupts)),
             timers: Timers::new(Rc::clone(&memory), Rc::clone(&interrupts)),
+            gpu: Gpu::new(Rc::clone(&memory), Rc::clone(&interrupts)),
             interrupts,
         }
     }
@@ -37,6 +40,7 @@ fn main() {
     loop {
         let frame_cycles = emulator.cpu.update();
         emulator.timers.update(frame_cycles);
+        emulator.gpu.update(frame_cycles);
         emulator.interrupts.borrow_mut().update();
         std::thread::sleep(refresh);
     }

@@ -275,54 +275,14 @@ pub fn print_debug_cpu_info(
   let [reg_d, reg_e] = de.to_be_bytes();
   let [reg_h, reg_l] = hl.to_be_bytes();
   if DEBUG {
-    // A: 77  F: 80  (AF: 7780)
     println!("A: {:02X}  F: {:02X}  (AF: {:04X})", reg_a, reg_f, af);
-    // B: 00  C: 00  (BC: 0000)
     println!("B: {:02X}  C: {:02X}  (BC: {:04X})", reg_b, reg_c, bc);
-    // D: 00  E: 08  (DE: 0008)
     println!("D: {:02X}  E: {:02X}  (DE: {:04X})", reg_d, reg_e, de);
-    // H: 00  L: 7C  (HL: 007C)
     println!("H: {:02X}  L: {:02X}  (HL: {:04X})", reg_h, reg_l, hl);
-    // PC: 0453  SP: DFFF
     println!("PC: {:04X}  SP: {:04X}", pc, sp);
-    // F: [Z---]
     println!("Z: {}, N: {}, H: {}, C: {}", z, n, h, c);
-    // ROM: 01  RAM: 00  WRAM: 01  VRAM: 00
-    // IE: 00  IF: E0  IME: 0
-    // LCDC: 91  STAT: 87  LY: 00
-    // Next video mode: 9
-    // 00:0453:  218F0B	ld hl, $B8F
     println!("00:{:04X}: {:02X}{:04X}", pc, opcode, n16);
-    print_instruction(opcode, pc);
-    // print!("\x1B[2J\x1B[1;1H");
-    // println!("CPU: -------------------------------");
-    // println!(
-    //     "A: {:02X}, B: {:02X}, C: {:02X}, D: {:02X}",
-    //     self.a, self.b, self.c, self.d
-    // );
-
-    // println!(
-    //     "E: {:x}, F: {:x}, H: {:x}, L: {:x}",
-    //     self.e, self.f, self.h, self.l
-    // );
-    // println!(
-    //     "PC: {:x}, SP: {:x}",
-    //     self.memory.borrow().get_program_counter(),
-    //     self.memory.borrow().get_stack_pointer()
-    // );
-    // println!(
-    //     "Z: {}, N: {}, H: {}, C: {}",
-    //     self.get_flag(Flags::Z),
-    //     self.get_flag(Flags::N),
-    //     self.get_flag(Flags::H),
-    //     self.get_flag(Flags::C)
-    // );
-    // let opcode = self.read_memory_at_current_location();
-    // println!("Next instruction to execute: {:x}", opcode);
-    // println!(
-    //     "Disassembled instruction: \n     {}",
-    //     self.get_instruction_at(opcode)
-    // );
+    print_instruction(opcode, n16.swap_bytes());
 
     // println!("Total Cycles: {}", self.total_cycles);
     // if self.memory.borrow().get_program_counter() == 0x2817 {

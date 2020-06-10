@@ -57,13 +57,13 @@ impl Cpu {
             frame_cycles: 0,
             total_cycles: 0,
             a: 0x11,
-            f: 0xB0,
+            f: 0x80,
             b: 0x00,
-            c: 0x0d,
+            c: 0x00,
             d: 0x00,
-            e: 0xD8,
-            h: 0x01,
-            l: 0x4D,
+            e: 0x08,
+            h: 0x00,
+            l: 0x7C,
         }
     }
 
@@ -83,21 +83,21 @@ impl Cpu {
             Flags::C => 0x10,
         };
         if value {
-            self.f |= mask;
+            self.set_f(self.f | mask);
         } else {
-            self.f &= !(mask);
+            self.set_f(self.f & !(mask));
         };
     }
     fn get_next_16(&self) -> u16 {
         let c = self.memory.borrow().get_program_counter() as usize;
-        self.memory.borrow_mut().increment_program_counter(2);
+        self.mem_add_pc(2);
         let mem = self.memory.borrow();
         let address = mem.read_range(c..(c + 2));
-        BigEndian::read_u16(&[address[0], address[1]])
+        BigEndian::read_u16(&[address[0], address[1]]).swap_bytes()
     }
     fn get_next_8(&self) -> u8 {
         let data = self.read_memory_at_current_location();
-        self.memory.borrow_mut().increment_program_counter(1);
+        self.mem_add_pc(1);
         data
     }
     fn get_next_16_debug(&self) -> u16 {
@@ -109,26 +109,26 @@ impl Cpu {
     fn get_next_8_debug(&self) -> u8 {
         self.read_memory_at_current_location()
     }
-    fn mem_write(&mut self, address: u16, data: u8) {
+    fn mem_write(&self, address: u16, data: u8) {
         self.memory.borrow_mut().write(address, data);
     }
-    fn mem_write_u16(&mut self, address: u16, data: u16) {
+    fn mem_write_u16(&self, address: u16, data: u16) {
         let bytes = data.to_be_bytes();
         self.mem_write(address, bytes[0]);
         self.mem_write(address.wrapping_add(1), bytes[1]);
     }
-    fn mem_write_sp(&mut self, address: u16) {
+    fn mem_write_sp(&self, address: u16) {
         self.memory.borrow_mut().set_stack_pointer(address)
     }
-    fn mem_write_pc(&mut self, address: u16) {
+    fn mem_write_pc(&self, address: u16) {
         self.memory.borrow_mut().set_program_counter(address);
     }
-    fn mem_add_pc(&mut self, increment: u16) {
+    fn mem_add_pc(&self, increment: u16) {
         self.memory
             .borrow_mut()
             .increment_program_counter(increment);
     }
-    fn mem_push_stack(&mut self, address: u16) {
+    fn mem_push_stack(&self, address: u16) {
         self.memory.borrow_mut().push_to_stack(address);
     }
     fn mem_pop_stack(&self) -> u16 {
@@ -170,13 +170,27 @@ impl Cpu {
     }
     fn set_reg_u8(&mut self, reg: &Reg, data: u8) {
         match reg {
-            Reg::A => self.a = data,
-            Reg::B => self.b = data,
-            Reg::C => self.c = data,
-            Reg::D => self.d = data,
-            Reg::E => self.e = data,
-            Reg::H => self.h = data,
-            Reg::L => self.l = data,
+            Reg::A => {
+                self.set_a(data);
+            }
+            Reg::B => {
+                self.set_b(data);
+            }
+            Reg::C => {
+                self.set_c(data);
+            }
+            Reg::D => {
+                self.set_d(data);
+            }
+            Reg::E => {
+                self.set_e(data);
+            }
+            Reg::H => {
+                self.set_h(data);
+            }
+            Reg::L => {
+                self.set_l(data);
+            }
             Reg::HL => self.mem_write(self.get_reg_u16(&Reg::HL), data),
             _ => panic!("Unsupported fn set_reg_u8"),
         };
@@ -227,6 +241,10 @@ impl Cpu {
         self.a = data;
         self.a
     }
+    fn set_f(&mut self, data: u8) -> u8 {
+        self.f = data;
+        self.f
+    }
     fn set_b(&mut self, data: u8) -> u8 {
         self.b = data;
         self.b
@@ -253,19 +271,19 @@ impl Cpu {
     }
     fn ld_nn_n(&mut self, reg: Reg) -> u32 {
         let next_8 = self.get_next_8();
-        match reg {
-            Reg::B => self.b = next_8,
-            Reg::C => self.c = next_8,
-            Reg::D => self.d = next_8,
-            Reg::E => self.e = next_8,
-            Reg::H => self.h = next_8,
-            Reg::L => self.l = next_8,
+        let _ = match reg {
+            Reg::B => self.set_b(next_8),
+            Reg::C => self.set_c(next_8),
+            Reg::D => self.set_d(next_8),
+            Reg::E => self.set_e(next_8),
+            Reg::H => self.set_h(next_8),
+            Reg::L => self.set_l(next_8),
             _ => panic!("Unsupported fn ld_nn_n"),
-        }
+        };
         8
     }
     fn ld_n_nn(&mut self, n: Reg) -> u32 {
-        let data = self.get_next_16().swap_bytes();
+        let data = self.get_next_16();
         match n {
             Reg::BC => self.set_bc(data),
             Reg::DE => self.set_de(data),
@@ -293,7 +311,7 @@ impl Cpu {
         self.ld_r1_r2(r1, data);
         8
     }
-    fn ld_hl_r2(&mut self, r2: Reg) -> u32 {
+    fn ld_hl_r2(&self, r2: Reg) -> u32 {
         let data = self.get_reg_u8(&r2);
         self.mem_write(self.get_reg_u16(&Reg::HL), data);
         8
@@ -307,14 +325,13 @@ impl Cpu {
             _ => panic!("Unsupported fn ld_a_n"),
         };
         let data = self.mem_read(address);
-        self.mem_add_pc(1);
         self.set_a(data);
         if reg == Reg::N16 {
             return 16;
         }
         8
     }
-    fn ld_n_a(&mut self, reg: Reg) -> u32 {
+    fn ld_n_a(&self, reg: Reg) -> u32 {
         let address = match reg {
             Reg::BC => self.get_reg_u16(&Reg::BC),
             Reg::DE => self.get_reg_u16(&Reg::DE),
@@ -328,7 +345,7 @@ impl Cpu {
         }
         8
     }
-    fn push_nn(&mut self, reg: Reg) -> u32 {
+    fn push_nn(&self, reg: Reg) -> u32 {
         let address = match reg {
             Reg::AF => self.get_reg_u16(&Reg::AF),
             Reg::BC => self.get_reg_u16(&Reg::BC),
@@ -336,13 +353,11 @@ impl Cpu {
             Reg::HL => self.get_reg_u16(&Reg::HL),
             _ => panic!("Unsupported fn push_nn"),
         };
-        println!("Pushing address to stack (push_nn): {:04X}", address);
         self.mem_push_stack(address);
         16
     }
     fn pop_nn(&mut self, reg: Reg) -> u32 {
         let stack = self.mem_pop_stack();
-        println!("Popping address from stack (pop_nn): {:04X}", stack);
         match reg {
             Reg::AF => self.set_af(stack),
             Reg::BC => self.set_bc(stack),
@@ -381,7 +396,7 @@ impl Cpu {
         let data = self.get_reg_u8(&reg);
         self.set_flag(Flags::Z, test_flag_sub(self.a, data, Flags::Z));
         self.set_flag(Flags::N, true);
-        self.set_flag(Flags::H, test_flag_sub(self.a, data, Flags::H));
+        self.set_flag(Flags::H, !test_flag_sub(self.a, data, Flags::H));
         self.set_flag(Flags::C, test_flag_sub(self.a, data, Flags::C));
         self.set_a(self.a.wrapping_sub(data));
         if reg == Reg::HL || reg == Reg::N8 {
@@ -447,7 +462,6 @@ impl Cpu {
         self.set_flag(Flags::N, true);
         self.set_flag(Flags::H, test_flag_sub(self.a, data, Flags::H));
         self.set_flag(Flags::C, test_flag_sub(self.a, data, Flags::C));
-        self.mem_add_pc(1);
         if reg == Reg::HL || reg == Reg::N8 {
             return 8;
         }
@@ -517,67 +531,224 @@ impl Cpu {
         }
         8
     }
-    fn jr_cc_n(&mut self, condition: bool) -> u32 {
+    fn jr_cc_n(&self, condition: bool) -> u32 {
+        let address = self.get_next_8() as i8;
         if condition {
-            let address = self.get_next_8() as i8;
-            self.mem_write_pc(self.mem_read_pc().wrapping_add(address as u16));
+            self.mem_write_pc((self.mem_read_pc() as i32).wrapping_add(address as i32) as u16);
         }
         8
     }
-    fn ret_cc(&mut self, condition: bool) -> u32 {
+    fn ret_cc(&self, condition: bool) -> u32 {
         if condition {
             let address = self.mem_pop_stack();
-            println!("Popping address from stack (ret_cc): {:04X}", address);
             self.mem_write_pc(address);
         }
         8
     }
-    fn jp_cc_nn(&mut self, condition: bool) -> u32 {
+    fn jp_cc_nn(&self, condition: bool) -> u32 {
         if condition {
-            let address = self.get_next_16().swap_bytes();
+            let address = self.get_next_16();
             self.mem_write_pc(address);
         }
         12
     }
-    fn call_cc_nn(&mut self, condition: bool) -> u32 {
+    fn call_cc_nn(&self, condition: bool) -> u32 {
         if condition {
-            let address = self.get_next_16().swap_bytes();
+            let address = self.get_next_16();
             let next_pc = self.mem_read_pc();
-            println!("Pushing address to stack (call_cc_nn): {:04X}", next_pc);
             self.mem_push_stack(next_pc);
             self.mem_write_pc(address);
         }
         12
     }
-    fn rst_n(&mut self, new_address: u16) -> u32 {
+    fn rst_n(&self, new_address: u16) -> u32 {
         let current_address = self.mem_read_pc();
-        println!("Pushing address to stack (rst_n): {:04X}", current_address);
         self.mem_push_stack(current_address);
         self.mem_write_pc(new_address);
         32
     }
-    fn di(&mut self) -> u32 {
+    fn di(&self) -> u32 {
         self.interrupts.borrow_mut().clear_master_enabled();
         4
     }
-    fn ei(&mut self) -> u32 {
+    fn ei(&self) -> u32 {
         self.interrupts.borrow_mut().set_master_enabled_on();
         4
     }
     fn cb(&mut self) -> u32 {
         let address = self.get_next_8();
-        println!("Executing callback opcode {:x}", address);
         self.execute_opcode(address, true);
         4
     }
-    fn res_b_a(&mut self, bit: u8) -> u32 {
-        self.a &= !(bit);
+    fn rlc_n(&mut self, reg: Reg) -> u32 {
+        let data = self.get_reg_u8(&reg);
+        let result = data << 1;
+        let to_carry = data >> 7;
+        self.set_flag(Flags::Z, result == 0);
+        self.set_flag(Flags::N, false);
+        self.set_flag(Flags::H, false);
+        self.set_flag(Flags::C, to_carry == 1);
+        if reg == Reg::HL {
+            return 16;
+        }
+        8
+    }
+    fn rl_n(&mut self, reg: Reg) -> u32 {
+        let data = self.get_reg_u8(&reg);
+        let result = (data << 1).wrapping_add(self.get_flag(Flags::C));
+        let to_carry = data >> 7;
+        self.set_flag(Flags::Z, result == 0);
+        self.set_flag(Flags::N, false);
+        self.set_flag(Flags::H, false);
+        self.set_flag(Flags::C, to_carry == 1);
+        if reg == Reg::HL {
+            return 16;
+        }
+        8
+    }
+    fn rrc_n(&mut self, reg: Reg) -> u32 {
+        let data = self.get_reg_u8(&reg);
+        let result = data >> 1;
+        let to_carry = data & 0x1;
+        self.set_flag(Flags::Z, result == 0);
+        self.set_flag(Flags::N, false);
+        self.set_flag(Flags::H, false);
+        self.set_flag(Flags::C, to_carry == 1);
+        if reg == Reg::HL {
+            return 16;
+        }
+        8
+    }
+    fn rr_n(&mut self, reg: Reg) -> u32 {
+        let data = self.get_reg_u8(&reg);
+        let result = (self.get_flag(Flags::C) << 7).wrapping_add(data >> 1);
+        let to_carry = data >> 7;
+        self.set_flag(Flags::Z, result == 0);
+        self.set_flag(Flags::N, false);
+        self.set_flag(Flags::H, false);
+        self.set_flag(Flags::C, to_carry == 1);
+        if reg == Reg::HL {
+            return 16;
+        }
+        8
+    }
+    fn sla_n(&mut self, reg: Reg) -> u32 {
+        let data = self.get_reg_u8(&reg);
+        let result = data << 1;
+        let to_carry = data >> 7;
+        self.set_flag(Flags::Z, result == 0);
+        self.set_flag(Flags::N, false);
+        self.set_flag(Flags::H, false);
+        self.set_flag(Flags::C, to_carry == 1);
+        if reg == Reg::HL {
+            return 16;
+        }
+        8
+    }
+    fn sra_n(&mut self, reg: Reg) -> u32 {
+        let data = self.get_reg_u8(&reg);
+        let result = (data >> 1) | (data & 0x80);
+        let to_carry = data & 0x01;
+        self.set_flag(Flags::Z, result == 0);
+        self.set_flag(Flags::N, false);
+        self.set_flag(Flags::H, false);
+        self.set_flag(Flags::C, to_carry == 1);
+        if reg == Reg::HL {
+            return 16;
+        }
+        8
+    }
+    fn srl_n(&mut self, reg: Reg) -> u32 {
+        let data = self.get_reg_u8(&reg);
+        let result = data >> 1;
+        let to_carry = data & 0x01;
+        self.set_flag(Flags::Z, result == 0);
+        self.set_flag(Flags::N, false);
+        self.set_flag(Flags::H, false);
+        self.set_flag(Flags::C, to_carry == 1);
+        if reg == Reg::HL {
+            return 16;
+        }
+        8
+    }
+    fn bit_b_r(&mut self, reg: Reg, bit: u8) -> u32 {
+        let data = self.get_reg_u8(&reg);
+        let result = data & (1 << bit);
+        self.set_flag(Flags::Z, result == 0);
+        self.set_flag(Flags::N, false);
+        self.set_flag(Flags::H, true);
+        if reg == Reg::HL {
+            return 16;
+        }
+        8
+    }
+    fn set_b_r(&mut self, reg: Reg, bit: u8) -> u32 {
+        let data = self.get_reg_u8(&reg);
+        self.set_reg_u8(&reg, data | (1 << bit));
+        if reg == Reg::HL {
+            return 16;
+        }
+        8
+    }
+    fn res_b_r(&mut self, reg: Reg, bit: u8) -> u32 {
+        let data = self.get_reg_u8(&reg);
+        self.set_reg_u8(&reg, data & !(1 << bit));
+        if reg == Reg::HL {
+            return 16;
+        }
         8
     }
     fn execute_opcode(&mut self, opcode: u8, is_callback: bool) -> u32 {
         if is_callback {
-            self.memory.borrow_mut().increment_program_counter(1);
             return match opcode {
+                0x00 => self.rlc_n(Reg::B),
+                0x01 => self.rlc_n(Reg::C),
+                0x02 => self.rlc_n(Reg::D),
+                0x03 => self.rlc_n(Reg::E),
+                0x04 => self.rlc_n(Reg::H),
+                0x05 => self.rlc_n(Reg::L),
+                0x06 => self.rlc_n(Reg::HL),
+                0x07 => self.rlc_n(Reg::A),
+                0x08 => self.rrc_n(Reg::B),
+                0x09 => self.rrc_n(Reg::C),
+                0x0a => self.rrc_n(Reg::D),
+                0x0b => self.rrc_n(Reg::E),
+                0x0c => self.rrc_n(Reg::H),
+                0x0d => self.rrc_n(Reg::L),
+                0x0e => self.rrc_n(Reg::HL),
+                0x0f => self.rrc_n(Reg::A),
+                0x10 => self.rl_n(Reg::B),
+                0x11 => self.rl_n(Reg::C),
+                0x12 => self.rl_n(Reg::D),
+                0x13 => self.rl_n(Reg::E),
+                0x14 => self.rl_n(Reg::H),
+                0x15 => self.rl_n(Reg::L),
+                0x16 => self.rl_n(Reg::HL),
+                0x17 => self.rl_n(Reg::A),
+                0x18 => self.rr_n(Reg::B),
+                0x19 => self.rr_n(Reg::C),
+                0x1a => self.rr_n(Reg::D),
+                0x1b => self.rr_n(Reg::E),
+                0x1c => self.rr_n(Reg::H),
+                0x1d => self.rr_n(Reg::L),
+                0x1e => self.rr_n(Reg::HL),
+                0x1f => self.rr_n(Reg::A),
+                0x20 => self.sla_n(Reg::B),
+                0x21 => self.sla_n(Reg::C),
+                0x22 => self.sla_n(Reg::D),
+                0x23 => self.sla_n(Reg::E),
+                0x24 => self.sla_n(Reg::H),
+                0x25 => self.sla_n(Reg::L),
+                0x26 => self.sla_n(Reg::HL),
+                0x27 => self.sla_n(Reg::A),
+                0x28 => self.sra_n(Reg::B),
+                0x29 => self.sra_n(Reg::C),
+                0x2a => self.sra_n(Reg::D),
+                0x2b => self.sra_n(Reg::E),
+                0x2c => self.sra_n(Reg::H),
+                0x2d => self.sra_n(Reg::L),
+                0x2e => self.sra_n(Reg::HL),
+                0x2f => self.sra_n(Reg::A),
                 0x30 => self.swap_n(Reg::B),
                 0x31 => self.swap_n(Reg::C),
                 0x32 => self.swap_n(Reg::D),
@@ -586,11 +757,206 @@ impl Cpu {
                 0x35 => self.swap_n(Reg::L),
                 0x36 => self.swap_n(Reg::HL),
                 0x37 => self.swap_n(Reg::A),
-                0x87 => self.res_b_a(0x1),
-                _ => {
-                    println!(" Callback Not implemented: {:x}", opcode);
-                    panic!("Not implemented");
-                }
+                0x38 => self.srl_n(Reg::B),
+                0x39 => self.srl_n(Reg::C),
+                0x3a => self.srl_n(Reg::D),
+                0x3b => self.srl_n(Reg::E),
+                0x3c => self.srl_n(Reg::H),
+                0x3d => self.srl_n(Reg::L),
+                0x3e => self.srl_n(Reg::HL),
+                0x3f => self.srl_n(Reg::A),
+                0x40 => self.bit_b_r(Reg::B, 0),
+                0x41 => self.bit_b_r(Reg::C, 0),
+                0x42 => self.bit_b_r(Reg::D, 0),
+                0x43 => self.bit_b_r(Reg::E, 0),
+                0x44 => self.bit_b_r(Reg::H, 0),
+                0x45 => self.bit_b_r(Reg::L, 0),
+                0x46 => self.bit_b_r(Reg::HL, 0),
+                0x47 => self.bit_b_r(Reg::A, 0),
+                0x48 => self.bit_b_r(Reg::B, 1),
+                0x49 => self.bit_b_r(Reg::C, 1),
+                0x4a => self.bit_b_r(Reg::D, 1),
+                0x4b => self.bit_b_r(Reg::E, 1),
+                0x4c => self.bit_b_r(Reg::H, 1),
+                0x4d => self.bit_b_r(Reg::L, 1),
+                0x4e => self.bit_b_r(Reg::HL, 1),
+                0x4f => self.bit_b_r(Reg::A, 1),
+                0x50 => self.bit_b_r(Reg::B, 2),
+                0x51 => self.bit_b_r(Reg::C, 2),
+                0x52 => self.bit_b_r(Reg::D, 2),
+                0x53 => self.bit_b_r(Reg::E, 2),
+                0x54 => self.bit_b_r(Reg::H, 2),
+                0x55 => self.bit_b_r(Reg::L, 2),
+                0x56 => self.bit_b_r(Reg::HL, 2),
+                0x57 => self.bit_b_r(Reg::A, 2),
+                0x58 => self.bit_b_r(Reg::B, 3),
+                0x59 => self.bit_b_r(Reg::C, 3),
+                0x5a => self.bit_b_r(Reg::D, 3),
+                0x5b => self.bit_b_r(Reg::E, 3),
+                0x5c => self.bit_b_r(Reg::H, 3),
+                0x5d => self.bit_b_r(Reg::L, 3),
+                0x5e => self.bit_b_r(Reg::HL, 3),
+                0x5f => self.bit_b_r(Reg::A, 3),
+                0x60 => self.bit_b_r(Reg::B, 4),
+                0x61 => self.bit_b_r(Reg::C, 4),
+                0x62 => self.bit_b_r(Reg::D, 4),
+                0x63 => self.bit_b_r(Reg::E, 4),
+                0x64 => self.bit_b_r(Reg::H, 4),
+                0x65 => self.bit_b_r(Reg::L, 4),
+                0x66 => self.bit_b_r(Reg::HL, 4),
+                0x67 => self.bit_b_r(Reg::A, 4),
+                0x68 => self.bit_b_r(Reg::B, 5),
+                0x69 => self.bit_b_r(Reg::C, 5),
+                0x6a => self.bit_b_r(Reg::D, 5),
+                0x6b => self.bit_b_r(Reg::E, 5),
+                0x6c => self.bit_b_r(Reg::H, 5),
+                0x6d => self.bit_b_r(Reg::L, 5),
+                0x6e => self.bit_b_r(Reg::HL, 5),
+                0x6f => self.bit_b_r(Reg::A, 5),
+                0x70 => self.bit_b_r(Reg::B, 6),
+                0x71 => self.bit_b_r(Reg::C, 6),
+                0x72 => self.bit_b_r(Reg::D, 6),
+                0x73 => self.bit_b_r(Reg::E, 6),
+                0x74 => self.bit_b_r(Reg::H, 6),
+                0x75 => self.bit_b_r(Reg::L, 6),
+                0x76 => self.bit_b_r(Reg::HL, 6),
+                0x77 => self.bit_b_r(Reg::A, 6),
+                0x78 => self.bit_b_r(Reg::B, 7),
+                0x79 => self.bit_b_r(Reg::C, 7),
+                0x7a => self.bit_b_r(Reg::D, 7),
+                0x7b => self.bit_b_r(Reg::E, 7),
+                0x7c => self.bit_b_r(Reg::H, 7),
+                0x7d => self.bit_b_r(Reg::L, 7),
+                0x7e => self.bit_b_r(Reg::HL, 7),
+                0x7f => self.bit_b_r(Reg::A, 7),
+                0x80 => self.res_b_r(Reg::B, 0),
+                0x81 => self.res_b_r(Reg::C, 0),
+                0x82 => self.res_b_r(Reg::D, 0),
+                0x83 => self.res_b_r(Reg::E, 0),
+                0x84 => self.res_b_r(Reg::H, 0),
+                0x85 => self.res_b_r(Reg::L, 0),
+                0x86 => self.res_b_r(Reg::HL, 0),
+                0x87 => self.res_b_r(Reg::A, 0),
+                0x88 => self.res_b_r(Reg::B, 1),
+                0x89 => self.res_b_r(Reg::C, 1),
+                0x8a => self.res_b_r(Reg::D, 1),
+                0x8b => self.res_b_r(Reg::E, 1),
+                0x8c => self.res_b_r(Reg::H, 1),
+                0x8d => self.res_b_r(Reg::L, 1),
+                0x8e => self.res_b_r(Reg::HL, 1),
+                0x8f => self.res_b_r(Reg::A, 1),
+                0x90 => self.res_b_r(Reg::B, 2),
+                0x91 => self.res_b_r(Reg::C, 2),
+                0x92 => self.res_b_r(Reg::D, 2),
+                0x93 => self.res_b_r(Reg::E, 2),
+                0x94 => self.res_b_r(Reg::H, 2),
+                0x95 => self.res_b_r(Reg::L, 2),
+                0x96 => self.res_b_r(Reg::HL, 2),
+                0x97 => self.res_b_r(Reg::A, 2),
+                0x98 => self.res_b_r(Reg::B, 3),
+                0x99 => self.res_b_r(Reg::C, 3),
+                0x9a => self.res_b_r(Reg::D, 3),
+                0x9b => self.res_b_r(Reg::E, 3),
+                0x9c => self.res_b_r(Reg::H, 3),
+                0x9d => self.res_b_r(Reg::L, 3),
+                0x9e => self.res_b_r(Reg::HL, 3),
+                0x9f => self.res_b_r(Reg::A, 3),
+                0xa0 => self.res_b_r(Reg::B, 4),
+                0xa1 => self.res_b_r(Reg::C, 4),
+                0xa2 => self.res_b_r(Reg::D, 4),
+                0xa3 => self.res_b_r(Reg::E, 4),
+                0xa4 => self.res_b_r(Reg::H, 4),
+                0xa5 => self.res_b_r(Reg::L, 4),
+                0xa6 => self.res_b_r(Reg::HL, 4),
+                0xa7 => self.res_b_r(Reg::A, 4),
+                0xa8 => self.res_b_r(Reg::B, 5),
+                0xa9 => self.res_b_r(Reg::C, 5),
+                0xaa => self.res_b_r(Reg::D, 5),
+                0xab => self.res_b_r(Reg::E, 5),
+                0xac => self.res_b_r(Reg::H, 5),
+                0xad => self.res_b_r(Reg::L, 5),
+                0xae => self.res_b_r(Reg::HL, 5),
+                0xaf => self.res_b_r(Reg::A, 5),
+                0xb0 => self.res_b_r(Reg::B, 6),
+                0xb1 => self.res_b_r(Reg::C, 6),
+                0xb2 => self.res_b_r(Reg::D, 6),
+                0xb3 => self.res_b_r(Reg::E, 6),
+                0xb4 => self.res_b_r(Reg::H, 6),
+                0xb5 => self.res_b_r(Reg::L, 6),
+                0xb6 => self.res_b_r(Reg::HL, 6),
+                0xb7 => self.res_b_r(Reg::A, 6),
+                0xb8 => self.res_b_r(Reg::B, 7),
+                0xb9 => self.res_b_r(Reg::C, 7),
+                0xba => self.res_b_r(Reg::D, 7),
+                0xbb => self.res_b_r(Reg::E, 7),
+                0xbc => self.res_b_r(Reg::H, 7),
+                0xbd => self.res_b_r(Reg::L, 7),
+                0xbe => self.res_b_r(Reg::HL, 7),
+                0xbf => self.res_b_r(Reg::A, 7),
+                0xc0 => self.set_b_r(Reg::B, 0),
+                0xc1 => self.set_b_r(Reg::C, 0),
+                0xc2 => self.set_b_r(Reg::D, 0),
+                0xc3 => self.set_b_r(Reg::E, 0),
+                0xc4 => self.set_b_r(Reg::H, 0),
+                0xc5 => self.set_b_r(Reg::L, 0),
+                0xc6 => self.set_b_r(Reg::HL, 0),
+                0xc7 => self.set_b_r(Reg::A, 0),
+                0xc8 => self.set_b_r(Reg::B, 1),
+                0xc9 => self.set_b_r(Reg::C, 1),
+                0xca => self.set_b_r(Reg::D, 1),
+                0xcb => self.set_b_r(Reg::E, 1),
+                0xcc => self.set_b_r(Reg::H, 1),
+                0xcd => self.set_b_r(Reg::L, 1),
+                0xce => self.set_b_r(Reg::HL, 1),
+                0xcf => self.set_b_r(Reg::A, 1),
+                0xd0 => self.set_b_r(Reg::B, 2),
+                0xd1 => self.set_b_r(Reg::C, 2),
+                0xd2 => self.set_b_r(Reg::D, 2),
+                0xd3 => self.set_b_r(Reg::E, 2),
+                0xd4 => self.set_b_r(Reg::H, 2),
+                0xd5 => self.set_b_r(Reg::L, 2),
+                0xd6 => self.set_b_r(Reg::HL, 2),
+                0xd7 => self.set_b_r(Reg::A, 2),
+                0xd8 => self.set_b_r(Reg::B, 3),
+                0xd9 => self.set_b_r(Reg::C, 3),
+                0xda => self.set_b_r(Reg::D, 3),
+                0xdb => self.set_b_r(Reg::E, 3),
+                0xdc => self.set_b_r(Reg::H, 3),
+                0xdd => self.set_b_r(Reg::L, 3),
+                0xde => self.set_b_r(Reg::HL, 3),
+                0xdf => self.set_b_r(Reg::A, 3),
+                0xe0 => self.set_b_r(Reg::B, 4),
+                0xe1 => self.set_b_r(Reg::C, 4),
+                0xe2 => self.set_b_r(Reg::D, 4),
+                0xe3 => self.set_b_r(Reg::E, 4),
+                0xe4 => self.set_b_r(Reg::H, 4),
+                0xe5 => self.set_b_r(Reg::L, 4),
+                0xe6 => self.set_b_r(Reg::HL, 4),
+                0xe7 => self.set_b_r(Reg::A, 4),
+                0xe8 => self.set_b_r(Reg::B, 5),
+                0xe9 => self.set_b_r(Reg::C, 5),
+                0xea => self.set_b_r(Reg::D, 5),
+                0xeb => self.set_b_r(Reg::E, 5),
+                0xec => self.set_b_r(Reg::H, 5),
+                0xed => self.set_b_r(Reg::L, 5),
+                0xee => self.set_b_r(Reg::HL, 5),
+                0xef => self.set_b_r(Reg::A, 5),
+                0xf0 => self.set_b_r(Reg::B, 6),
+                0xf1 => self.set_b_r(Reg::C, 6),
+                0xf2 => self.set_b_r(Reg::D, 6),
+                0xf3 => self.set_b_r(Reg::E, 6),
+                0xf4 => self.set_b_r(Reg::H, 6),
+                0xf5 => self.set_b_r(Reg::L, 6),
+                0xf6 => self.set_b_r(Reg::HL, 6),
+                0xf7 => self.set_b_r(Reg::A, 6),
+                0xf8 => self.set_b_r(Reg::B, 7),
+                0xf9 => self.set_b_r(Reg::C, 7),
+                0xfa => self.set_b_r(Reg::D, 7),
+                0xfb => self.set_b_r(Reg::E, 7),
+                0xfc => self.set_b_r(Reg::H, 7),
+                0xfd => self.set_b_r(Reg::L, 7),
+                0xfe => self.set_b_r(Reg::HL, 7),
+                0xff => self.set_b_r(Reg::A, 7),
             };
         }
         match opcode {
@@ -601,15 +967,7 @@ impl Cpu {
             0x04 => self.inc_n(Reg::B),
             0x05 => self.dec_n(Reg::B),
             0x06 => self.ld_nn_n(Reg::B),
-            0x07 => {
-                let result = self.a << 1;
-                let to_carry = self.a >> 7;
-                self.set_flag(Flags::Z, result == 0);
-                self.set_flag(Flags::N, false);
-                self.set_flag(Flags::H, false);
-                self.set_flag(Flags::C, to_carry == 1);
-                4
-            }
+            0x07 => self.rlc_n(Reg::A),
             0x08 => {
                 let address = self.get_next_16();
                 let stack_pointer = self.memory.borrow().get_stack_pointer();
@@ -622,15 +980,7 @@ impl Cpu {
             0x0c => self.inc_n(Reg::C),
             0x0d => self.dec_n(Reg::C),
             0x0e => self.ld_nn_n(Reg::C),
-            0x0f => {
-                let result = self.a >> 1;
-                let to_carry = self.a & 0x1;
-                self.set_flag(Flags::Z, result == 0);
-                self.set_flag(Flags::N, false);
-                self.set_flag(Flags::H, false);
-                self.set_flag(Flags::C, to_carry == 1);
-                4
-            }
+            0x0f => self.rrc_n(Reg::A),
             0x10 => 4,
             0x11 => self.ld_n_nn(Reg::DE),
             0x12 => self.ld_n_a(Reg::DE),
@@ -638,15 +988,7 @@ impl Cpu {
             0x14 => self.inc_n(Reg::D),
             0x15 => self.dec_n(Reg::D),
             0x16 => self.ld_nn_n(Reg::D),
-            0x17 => {
-                let result = (self.a << 1).wrapping_add(self.get_flag(Flags::C));
-                let to_carry = self.a >> 7;
-                self.set_flag(Flags::Z, result == 0);
-                self.set_flag(Flags::N, false);
-                self.set_flag(Flags::H, false);
-                self.set_flag(Flags::C, to_carry == 1);
-                4
-            }
+            0x17 => self.rl_n(Reg::A),
             0x18 => self.jr_cc_n(true),
             0x19 => self.add_hl_n(Reg::DE),
             0x1a => self.ld_a_n(Reg::DE),
@@ -654,15 +996,7 @@ impl Cpu {
             0x1c => self.inc_n(Reg::E),
             0x1d => self.dec_n(Reg::E),
             0x1e => self.ld_nn_n(Reg::E),
-            0x1f => {
-                let result = (self.get_flag(Flags::C) << 7).wrapping_add(self.a >> 1);
-                let to_carry = self.a >> 7;
-                self.set_flag(Flags::Z, result == 0);
-                self.set_flag(Flags::N, false);
-                self.set_flag(Flags::H, false);
-                self.set_flag(Flags::C, to_carry == 1);
-                4
-            }
+            0x1f => self.rr_n(Reg::A),
             0x20 => self.jr_cc_n(self.get_flag(Flags::Z) == 0),
             0x21 => self.ld_n_nn(Reg::HL),
             0x22 => {
@@ -732,7 +1066,7 @@ impl Cpu {
                 self.set_flag(Flags::N, true);
                 4
             }
-            0x30 => self.jr_cc_n(self.get_flag(Flags::N) == 0),
+            0x30 => self.jr_cc_n(self.get_flag(Flags::C) == 0),
             0x31 => self.ld_n_nn(Reg::SP),
             0x32 => {
                 let address = self.get_reg_u16(&Reg::HL);
@@ -754,7 +1088,7 @@ impl Cpu {
                 self.set_flag(Flags::H, false);
                 4
             }
-            0x38 => self.jr_cc_n(self.get_flag(Flags::N) == 1),
+            0x38 => self.jr_cc_n(self.get_flag(Flags::C) == 1),
             0x39 => self.add_hl_n(Reg::SP),
             0x3a => {
                 let address = self.get_reg_u16(&Reg::HL);
@@ -930,7 +1264,6 @@ impl Cpu {
             0xd8 => self.ret_cc(self.get_flag(Flags::C) == 1),
             0xd9 => {
                 let address = self.mem_pop_stack();
-                println!("Popping address from stack (0xdn opcode): {:04X}", address);
                 self.mem_write_pc(address);
                 self.interrupts.borrow_mut().set_master_enabled_on();
                 8
@@ -942,7 +1275,6 @@ impl Cpu {
             0xe0 => {
                 let address = self.get_next_8();
                 self.mem_write(0xff00 | address as u16, self.a);
-                self.mem_add_pc(1);
                 12
             }
             0xe1 => self.pop_nn(Reg::HL),
@@ -973,8 +1305,7 @@ impl Cpu {
             0xef => self.rst_n(0x0028),
             0xf0 => {
                 let address = self.get_next_8();
-                self.a = self.mem_read((0xff00 as u16).wrapping_add(address as u16));
-                self.mem_add_pc(1);
+                self.set_a(self.mem_read((0xff00 as u16).wrapping_add(address as u16)));
                 4
             }
             0xf1 => self.pop_nn(Reg::AF),
@@ -1007,7 +1338,7 @@ impl Cpu {
             0xfe => self.cp_n(Reg::N8),
             0xff => self.rst_n(0x0038),
             0xd3 | 0xdb | 0xdd | 0xe3 | 0xe4 | 0xeb | 0xec | 0xed | 0xf4 | 0xfc | 0xfd => {
-                panic!("Unexisting code")
+                panic!("Unexisting code {:X}", opcode)
             }
         }
     }
