@@ -38,10 +38,14 @@ fn main() {
     let refresh = std::time::Duration::from_secs_f64(1.0 / FPS as f64);
 
     loop {
-        let frame_cycles = emulator.cpu.update();
-        emulator.timers.update(frame_cycles);
-        emulator.gpu.update(frame_cycles);
-        emulator.interrupts.borrow_mut().update();
+        let mut frame_cycles = 0;
+        while frame_cycles < MAXCYCLES {
+            let opcode_cycles = emulator.cpu.update();
+            frame_cycles += opcode_cycles;
+            emulator.timers.update(frame_cycles);
+            emulator.gpu.update(frame_cycles);
+            emulator.interrupts.borrow_mut().update();
+        }
         std::thread::sleep(refresh);
     }
 }

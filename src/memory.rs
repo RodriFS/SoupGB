@@ -24,7 +24,7 @@ pub struct Memory {
     pub banking_mode: Bmode,
     stack_pointer: u16,
     program_counter: u16,
-    link_port: Vec<u8>,
+    link_port: Vec<char>,
 }
 
 impl Memory {
@@ -166,15 +166,21 @@ impl Memory {
         self.stack_pointer
     }
 
+    pub fn write_scanline(&mut self, data: u8) {
+        self.set_rom(0xff44, data);
+    }
+
+    pub fn get_linkport_output(&self) -> String {
+        self.link_port.iter().collect()
+    }
+
     pub fn write(&mut self, address: u16, data: u8) {
         if address < 0x8000 {
             match self.memory_bank_type {
                 MBC::NONE if address > 0x8000 => {
                     panic!("Trying to write to address greater than 0x8000")
                 }
-                MBC::MB1 | MBC::MB2 if address <= 0x7fff => {
-                    //panic!("Can't write, the cartridge data is there")
-                }
+                MBC::MB1 | MBC::MB2 if address <= 0x7fff => {}
                 MBC::MB1 | MBC::MB2 if address <= 0x1fff => match address & 0xf {
                     0x00 => self.set_is_ram_enabled(true),
                     0x0a => self.set_is_ram_enabled(false),
@@ -218,8 +224,8 @@ impl Memory {
             self.write(address - 0x2000, data);
         } else if (address >= 0xfea0) && (address <= 0xfefe) {
         } else if address == 0xff01 {
-            println!("{:x}", data);
-            self.link_port.push(data);
+            let c = self.internal_memory[0xff01] as char;
+            self.link_port.push(c);
             self.set_rom(address, data);
             self.set_rom(0xff02, 0x81);
         } else if address == 0xff04 {
@@ -228,12 +234,6 @@ impl Memory {
             self.set_rom(address, 0);
         } else {
             self.set_rom(address, data);
-        }
-        /////
-        if self.internal_memory[0xff02] == 0x81 {
-            let c = self.internal_memory[0xff01] as char;
-            println!("{}", c);
-            self.internal_memory[0xff02] = 0x0;
         }
     }
 }

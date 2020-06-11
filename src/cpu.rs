@@ -36,8 +36,6 @@ pub struct Cpu {
     is_halted: bool,
     memory: Rc<RefCell<Memory>>,
     interrupts: Rc<RefCell<Interrupts>>,
-    frame_cycles: u32,
-    total_cycles: u32,
     a: u8,
     f: u8,
     b: u8,
@@ -54,8 +52,6 @@ impl Cpu {
             is_halted: false,
             memory,
             interrupts,
-            frame_cycles: 0,
-            total_cycles: 0,
             a: 0x11,
             f: 0x80,
             b: 0x00,
@@ -534,7 +530,7 @@ impl Cpu {
     fn jr_cc_n(&self, condition: bool) -> u32 {
         let address = self.get_next_8() as i8;
         if condition {
-            self.mem_write_pc((self.mem_read_pc() as i32).wrapping_add(address as i32) as u16);
+            self.mem_write_pc(self.mem_read_pc().wrapping_add(address as u16));
         }
         8
     }
@@ -697,6 +693,31 @@ impl Cpu {
             return 16;
         }
         8
+    }
+    fn daa(&mut self) -> u32 {
+        // note: assumes a is a uint8_t and wraps from 0xff to 0
+        if self.get_flag(Flags::N) == 0 {
+            // after an addition, adjust if (half-)carry occurred or if result is out of bounds
+            if self.get_flag(Flags::C) == 1 || self.a > 0x99 {
+                self.set_a(self.a + 0x60);
+                self.set_flag(Flags::C, true);
+            }
+            if self.get_flag(Flags::H) == 1 || (self.a & 0x0f) > 0x09 {
+                self.set_a(self.a + 0x6);
+            }
+        } else {
+            // after a subtraction, only adjust if (half-)carry occurred
+            if self.get_flag(Flags::C) == 1 {
+                self.set_a(self.a - 0x60);
+            }
+            if self.get_flag(Flags::H) == 1 {
+                self.set_a(self.a - 0x6);
+            }
+        }
+        // these flags are always updated
+        self.set_flag(Flags::Z, self.a == 0); // the usual z flag
+        self.set_flag(Flags::H, false); // h flag is always cleared
+        4
     }
     fn execute_opcode(&mut self, opcode: u8, is_callback: bool) -> u32 {
         if is_callback {
@@ -1009,44 +1030,7 @@ impl Cpu {
             0x24 => self.inc_n(Reg::H),
             0x25 => self.dec_n(Reg::H),
             0x26 => self.ld_nn_n(Reg::H),
-            0x27 => {
-                let mut correction = 0;
-
-                let mut set_flag_c = 0;
-                let flag_h = self.get_flag(Flags::H);
-                let flag_n = self.get_flag(Flags::N);
-                let flag_c = self.get_flag(Flags::C);
-                let flag_z = self.get_flag(Flags::Z);
-                if flag_h == 1 || (flag_n == 0 && (self.a & 0xf) > 9) {
-                    correction |= 0x6;
-                }
-
-                if flag_c == 1 || (!flag_n == 0 && self.a > 0x99) {
-                    correction |= 0x60;
-                    set_flag_c = flag_c;
-                }
-
-                self.a += flag_n;
-                if self.a == 1 {
-                    self.a -= correction;
-                } else {
-                    self.a += correction;
-                }
-                self.a &= 0xff;
-
-                let mut set_flag_z = 0;
-                if self.a == 0 {
-                    set_flag_z = flag_z;
-                };
-
-                self.f &= !(flag_h | flag_z | flag_c);
-                self.f |= set_flag_c | set_flag_z;
-
-                self.set_flag(Flags::Z, set_flag_z == 1);
-                self.set_flag(Flags::H, false);
-                self.set_flag(Flags::C, set_flag_c == 1);
-                4
-            }
+            0x27 => self.daa(),
             0x28 => self.jr_cc_n(self.get_flag(Flags::Z) == 1),
             0x29 => self.add_hl_n(Reg::HL),
             0x2a => {
@@ -1338,6 +1322,8 @@ impl Cpu {
             0xfe => self.cp_n(Reg::N8),
             0xff => self.rst_n(0x0038),
             0xd3 | 0xdb | 0xdd | 0xe3 | 0xe4 | 0xeb | 0xec | 0xed | 0xf4 | 0xfc | 0xfd => {
+                let output = self.memory.borrow().get_linkport_output();
+                println!("{}\n\n", output);
                 panic!("Unexisting code {:X}", opcode)
             }
         }
@@ -1350,26 +1336,20 @@ impl Cpu {
     }
 
     pub fn update(&mut self) -> u32 {
-        self.frame_cycles = 0;
-        while self.frame_cycles < MAXCYCLES {
-            print_debug_cpu_info(
-                self.get_next_8_debug(),
-                self.get_next_16_debug(),
-                (self.get_af(), self.get_bc(), self.get_de(), self.get_hl()),
-                self.mem_read_pc(),
-                self.mem_read_sp(),
-                (
-                    self.get_flag(Flags::Z),
-                    self.get_flag(Flags::N),
-                    self.get_flag(Flags::H),
-                    self.get_flag(Flags::C),
-                ),
-            );
-            let opcode = self.get_next_8();
-            let cycles: u32 = self.execute_opcode(opcode, false);
-            self.frame_cycles += cycles;
-        }
-        self.total_cycles += self.frame_cycles;
-        self.frame_cycles
+        print_debug_cpu_info(
+            self.get_next_8_debug(),
+            self.get_next_16_debug(),
+            (self.get_af(), self.get_bc(), self.get_de(), self.get_hl()),
+            self.mem_read_pc(),
+            self.mem_read_sp(),
+            (
+                self.get_flag(Flags::Z),
+                self.get_flag(Flags::N),
+                self.get_flag(Flags::H),
+                self.get_flag(Flags::C),
+            ),
+        );
+        let opcode = self.get_next_8();
+        self.execute_opcode(opcode, false)
     }
 }
