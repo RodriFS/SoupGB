@@ -34,9 +34,10 @@ impl Interrupts {
         let clear_request = clear_bit_at(request, interrupt);
         self.memory.borrow_mut().write(0xff0f, clear_request);
 
+        let pc = self.memory.borrow().get_program_counter();
         self.memory
             .borrow_mut()
-            .push_to_stack(self.memory.borrow().get_program_counter());
+            .push_to_stack(pc);
 
         let pc = match interrupt {
             0 => 0x40,

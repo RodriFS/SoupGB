@@ -1,5 +1,6 @@
 use gba::constants::*;
 use gba::cpu::Cpu;
+use gba::debugger::steps;
 use gba::gpu::Gpu;
 use gba::interrupts::Interrupts;
 use gba::memory::Memory;
@@ -42,9 +43,10 @@ fn main() {
         while frame_cycles < MAXCYCLES {
             let opcode_cycles = emulator.cpu.update();
             frame_cycles += opcode_cycles;
-            emulator.timers.update(frame_cycles);
-            emulator.gpu.update(frame_cycles);
+            emulator.timers.update(opcode_cycles);
+            emulator.gpu.update(opcode_cycles);
             emulator.interrupts.borrow_mut().update();
+            steps();
         }
         std::thread::sleep(refresh);
     }

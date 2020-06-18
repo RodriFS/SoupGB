@@ -2,9 +2,10 @@ use super::constants::*;
 use super::debugger::print_debug_cpu_info;
 use super::interrupts::Interrupts;
 use super::memory::Memory;
-use super::utils::{get_bit_at, swap_nibbles, test_flag_add, test_flag_add_16, test_flag_sub};
+use super::utils::*;
 use byteorder::{BigEndian, ByteOrder};
 use std::cell::RefCell;
+use std::fs;
 use std::rc::Rc;
 
 #[derive(PartialEq)]
@@ -44,10 +45,13 @@ pub struct Cpu {
     e: u8,
     h: u8,
     l: u8,
+    file: String,
+    counter: usize,
 }
 
 impl Cpu {
     pub fn new(memory: Rc<RefCell<Memory>>, interrupts: Rc<RefCell<Interrupts>>) -> Self {
+        let file = fs::read_to_string("./debug.txt").unwrap();
         Self {
             is_halted: false,
             memory,
@@ -60,6 +64,8 @@ impl Cpu {
             e: 0x08,
             h: 0x00,
             l: 0x7C,
+            file,
+            counter: 0,
         }
     }
 
@@ -110,8 +116,8 @@ impl Cpu {
     }
     fn mem_write_u16(&self, address: u16, data: u16) {
         let bytes = data.to_be_bytes();
-        self.mem_write(address, bytes[0]);
-        self.mem_write(address.wrapping_add(1), bytes[1]);
+        self.mem_write(address, bytes[1]);
+        self.mem_write(address.wrapping_add(1), bytes[0]);
     }
     fn mem_write_sp(&self, address: u16) {
         self.memory.borrow_mut().set_stack_pointer(address)
@@ -159,7 +165,7 @@ impl Cpu {
             Reg::E => self.e,
             Reg::H => self.h,
             Reg::L => self.l,
-            Reg::HL => self.mem_read(self.get_reg_u16(&Reg::HL)),
+            Reg::HL => self.mem_read(self.get_hl()),
             Reg::N8 => self.get_next_8(),
             _ => panic!("Unsupported fn get_reg_u8"),
         }
@@ -187,7 +193,7 @@ impl Cpu {
             Reg::L => {
                 self.set_l(data);
             }
-            Reg::HL => self.mem_write(self.get_reg_u16(&Reg::HL), data),
+            Reg::HL => self.mem_write(self.get_hl(), data),
             _ => panic!("Unsupported fn set_reg_u8"),
         };
     }
@@ -216,7 +222,7 @@ impl Cpu {
     fn set_af(&mut self, data: u16) {
         let split = data.to_be_bytes();
         self.a = split[0];
-        self.f = split[1];
+        self.f = 0xf0 & split[1];
     }
     fn set_bc(&mut self, data: u16) {
         let split = data.to_be_bytes();
@@ -238,7 +244,7 @@ impl Cpu {
         self.a
     }
     fn set_f(&mut self, data: u8) -> u8 {
-        self.f = data;
+        self.f = 0xf0 & data;
         self.f
     }
     fn set_b(&mut self, data: u8) -> u8 {
@@ -265,6 +271,7 @@ impl Cpu {
         self.l = data;
         self.l
     }
+
     fn ld_nn_n(&mut self, reg: Reg) -> u32 {
         let next_8 = self.get_next_8();
         let _ = match reg {
@@ -303,20 +310,20 @@ impl Cpu {
         4
     }
     fn ld_r1_hl(&mut self, r1: Reg) -> u32 {
-        let data = self.memory.borrow().read(self.get_reg_u16(&Reg::HL));
+        let data = self.mem_read(self.get_hl());
         self.ld_r1_r2(r1, data);
         8
     }
     fn ld_hl_r2(&self, r2: Reg) -> u32 {
         let data = self.get_reg_u8(&r2);
-        self.mem_write(self.get_reg_u16(&Reg::HL), data);
+        self.mem_write(self.get_hl(), data);
         8
     }
     fn ld_a_n(&mut self, reg: Reg) -> u32 {
         let address = match reg {
-            Reg::BC => self.get_reg_u16(&Reg::BC),
-            Reg::DE => self.get_reg_u16(&Reg::DE),
-            Reg::HL => self.get_reg_u16(&Reg::HL),
+            Reg::BC => self.get_bc(),
+            Reg::DE => self.get_de(),
+            Reg::HL => self.get_hl(),
             Reg::N16 => self.get_next_16(),
             _ => panic!("Unsupported fn ld_a_n"),
         };
@@ -329,9 +336,9 @@ impl Cpu {
     }
     fn ld_n_a(&self, reg: Reg) -> u32 {
         let address = match reg {
-            Reg::BC => self.get_reg_u16(&Reg::BC),
-            Reg::DE => self.get_reg_u16(&Reg::DE),
-            Reg::HL => self.get_reg_u16(&Reg::HL),
+            Reg::BC => self.get_bc(),
+            Reg::DE => self.get_de(),
+            Reg::HL => self.get_hl(),
             Reg::N16 => self.get_next_16(),
             _ => panic!("Unsupported fn ld_n_a"),
         };
@@ -343,22 +350,22 @@ impl Cpu {
     }
     fn push_nn(&self, reg: Reg) -> u32 {
         let address = match reg {
-            Reg::AF => self.get_reg_u16(&Reg::AF),
-            Reg::BC => self.get_reg_u16(&Reg::BC),
-            Reg::DE => self.get_reg_u16(&Reg::DE),
-            Reg::HL => self.get_reg_u16(&Reg::HL),
+            Reg::AF => self.get_af(),
+            Reg::BC => self.get_bc(),
+            Reg::DE => self.get_de(),
+            Reg::HL => self.get_hl(),
             _ => panic!("Unsupported fn push_nn"),
         };
         self.mem_push_stack(address);
         16
     }
     fn pop_nn(&mut self, reg: Reg) -> u32 {
-        let stack = self.mem_pop_stack();
+        let data = self.mem_pop_stack();
         match reg {
-            Reg::AF => self.set_af(stack),
-            Reg::BC => self.set_bc(stack),
-            Reg::DE => self.set_de(stack),
-            Reg::HL => self.set_hl(stack),
+            Reg::AF => self.set_af(data),
+            Reg::BC => self.set_bc(data),
+            Reg::DE => self.set_de(data),
+            Reg::HL => self.set_hl(data),
             _ => panic!("Unsupported fn pop_nn"),
         }
         12
@@ -378,10 +385,10 @@ impl Cpu {
     fn addc_a_n(&mut self, reg: Reg) -> u32 {
         let carry = self.get_flag(Flags::C);
         let data = self.get_reg_u8(&reg);
-        self.set_flag(Flags::Z, test_flag_add(self.a, data + carry, Flags::Z));
+        self.set_flag(Flags::Z, test_flag_add_carry(self.a, data, carry, Flags::Z));
         self.set_flag(Flags::N, false);
-        self.set_flag(Flags::H, test_flag_add(self.a, data + carry, Flags::H));
-        self.set_flag(Flags::C, test_flag_add(self.a, data + carry, Flags::C));
+        self.set_flag(Flags::H, test_flag_add_carry(self.a, data, carry, Flags::H));
+        self.set_flag(Flags::C, test_flag_add_carry(self.a, data, carry, Flags::C));
         self.set_a(self.a.wrapping_add(data).wrapping_add(carry));
         if reg == Reg::HL || reg == Reg::N8 {
             return 8;
@@ -392,7 +399,7 @@ impl Cpu {
         let data = self.get_reg_u8(&reg);
         self.set_flag(Flags::Z, test_flag_sub(self.a, data, Flags::Z));
         self.set_flag(Flags::N, true);
-        self.set_flag(Flags::H, !test_flag_sub(self.a, data, Flags::H));
+        self.set_flag(Flags::H, test_flag_sub(self.a, data, Flags::H));
         self.set_flag(Flags::C, test_flag_sub(self.a, data, Flags::C));
         self.set_a(self.a.wrapping_sub(data));
         if reg == Reg::HL || reg == Reg::N8 {
@@ -403,11 +410,11 @@ impl Cpu {
     fn subc_a_n(&mut self, reg: Reg) -> u32 {
         let carry = self.get_flag(Flags::C);
         let data = self.get_reg_u8(&reg);
-        self.set_flag(Flags::Z, test_flag_sub(self.a, data + carry, Flags::Z));
+        self.set_flag(Flags::Z, test_flag_sub_carry(self.a, data, carry, Flags::Z));
         self.set_flag(Flags::N, true);
-        self.set_flag(Flags::H, test_flag_sub(self.a, data + carry, Flags::H));
-        self.set_flag(Flags::C, test_flag_sub(self.a, data + carry, Flags::C));
-        self.set_a(self.a.wrapping_sub(data).wrapping_add(carry));
+        self.set_flag(Flags::H, test_flag_sub_carry(self.a, data, carry, Flags::H));
+        self.set_flag(Flags::C, test_flag_sub_carry(self.a, data, carry, Flags::C));
+        self.set_a(self.a.wrapping_sub(data).wrapping_sub(carry));
         if reg == Reg::HL || reg == Reg::N8 {
             return 8;
         }
@@ -496,16 +503,15 @@ impl Cpu {
         8
     }
     fn add_hl_n(&mut self, reg: Reg) -> u32 {
-        let hl = self.get_reg_u16(&Reg::HL);
+        let hl = self.get_hl();
         let data = match reg {
-            Reg::BC => self.get_reg_u16(&Reg::BC),
-            Reg::DE => self.get_reg_u16(&Reg::DE),
+            Reg::BC => self.get_bc(),
+            Reg::DE => self.get_de(),
             Reg::HL => hl,
             Reg::SP => self.mem_read_sp(),
             _ => panic!("Unsupported fn add_hl_n"),
         };
         let result = hl.wrapping_add(data);
-        self.set_flag(Flags::Z, test_flag_add_16(hl, data, Flags::Z));
         self.set_flag(Flags::N, false);
         self.set_flag(Flags::H, test_flag_add_16(hl, data, Flags::H));
         self.set_flag(Flags::C, test_flag_add_16(hl, data, Flags::C));
@@ -515,13 +521,11 @@ impl Cpu {
     fn swap_n(&mut self, reg: Reg) -> u32 {
         let data = self.get_reg_u8(&reg);
         let result = swap_nibbles(data);
-        self.set_reg_u8(&reg, result);
-        if result == 0 {
-            self.set_flag(Flags::Z, true);
-        }
+        self.set_flag(Flags::Z, result == 0);
         self.set_flag(Flags::N, false);
         self.set_flag(Flags::C, false);
         self.set_flag(Flags::H, false);
+        self.set_reg_u8(&reg, result);
         if reg == Reg::HL {
             return 16;
         }
@@ -542,15 +546,15 @@ impl Cpu {
         8
     }
     fn jp_cc_nn(&self, condition: bool) -> u32 {
+        let address = self.get_next_16();
         if condition {
-            let address = self.get_next_16();
             self.mem_write_pc(address);
         }
         12
     }
     fn call_cc_nn(&self, condition: bool) -> u32 {
+        let address = self.get_next_16();
         if condition {
-            let address = self.get_next_16();
             let next_pc = self.mem_read_pc();
             self.mem_push_stack(next_pc);
             self.mem_write_pc(address);
@@ -578,12 +582,13 @@ impl Cpu {
     }
     fn rlc_n(&mut self, reg: Reg) -> u32 {
         let data = self.get_reg_u8(&reg);
-        let result = data << 1;
         let to_carry = data >> 7;
+        let result = data << 1 | to_carry;
         self.set_flag(Flags::Z, result == 0);
         self.set_flag(Flags::N, false);
         self.set_flag(Flags::H, false);
         self.set_flag(Flags::C, to_carry == 1);
+        self.set_reg_u8(&reg, result);
         if reg == Reg::HL {
             return 16;
         }
@@ -591,12 +596,13 @@ impl Cpu {
     }
     fn rl_n(&mut self, reg: Reg) -> u32 {
         let data = self.get_reg_u8(&reg);
-        let result = (data << 1).wrapping_add(self.get_flag(Flags::C));
+        let result = self.get_flag(Flags::C) | (data << 1);
         let to_carry = data >> 7;
         self.set_flag(Flags::Z, result == 0);
         self.set_flag(Flags::N, false);
         self.set_flag(Flags::H, false);
         self.set_flag(Flags::C, to_carry == 1);
+        self.set_reg_u8(&reg, result);
         if reg == Reg::HL {
             return 16;
         }
@@ -604,12 +610,13 @@ impl Cpu {
     }
     fn rrc_n(&mut self, reg: Reg) -> u32 {
         let data = self.get_reg_u8(&reg);
-        let result = data >> 1;
         let to_carry = data & 0x1;
+        let result = to_carry << 7 | data >> 1;
         self.set_flag(Flags::Z, result == 0);
         self.set_flag(Flags::N, false);
         self.set_flag(Flags::H, false);
         self.set_flag(Flags::C, to_carry == 1);
+        self.set_reg_u8(&reg, result);
         if reg == Reg::HL {
             return 16;
         }
@@ -617,12 +624,13 @@ impl Cpu {
     }
     fn rr_n(&mut self, reg: Reg) -> u32 {
         let data = self.get_reg_u8(&reg);
-        let result = (self.get_flag(Flags::C) << 7).wrapping_add(data >> 1);
-        let to_carry = data >> 7;
+        let result = self.get_flag(Flags::C) << 7 | data >> 1;
+        let to_carry = data & 0x1;
         self.set_flag(Flags::Z, result == 0);
         self.set_flag(Flags::N, false);
         self.set_flag(Flags::H, false);
         self.set_flag(Flags::C, to_carry == 1);
+        self.set_reg_u8(&reg, result);
         if reg == Reg::HL {
             return 16;
         }
@@ -636,6 +644,7 @@ impl Cpu {
         self.set_flag(Flags::N, false);
         self.set_flag(Flags::H, false);
         self.set_flag(Flags::C, to_carry == 1);
+        self.set_reg_u8(&reg, result);
         if reg == Reg::HL {
             return 16;
         }
@@ -649,6 +658,7 @@ impl Cpu {
         self.set_flag(Flags::N, false);
         self.set_flag(Flags::H, false);
         self.set_flag(Flags::C, to_carry == 1);
+        self.set_reg_u8(&reg, result);
         if reg == Reg::HL {
             return 16;
         }
@@ -662,6 +672,7 @@ impl Cpu {
         self.set_flag(Flags::N, false);
         self.set_flag(Flags::H, false);
         self.set_flag(Flags::C, to_carry == 1);
+        self.set_reg_u8(&reg, result);
         if reg == Reg::HL {
             return 16;
         }
@@ -695,28 +706,30 @@ impl Cpu {
         8
     }
     fn daa(&mut self) -> u32 {
-        // note: assumes a is a uint8_t and wraps from 0xff to 0
+        let mut carry = false;
         if self.get_flag(Flags::N) == 0 {
-            // after an addition, adjust if (half-)carry occurred or if result is out of bounds
             if self.get_flag(Flags::C) == 1 || self.a > 0x99 {
-                self.set_a(self.a + 0x60);
-                self.set_flag(Flags::C, true);
+                self.set_a(self.a.wrapping_add(0x60));
+                carry = true;
             }
             if self.get_flag(Flags::H) == 1 || (self.a & 0x0f) > 0x09 {
-                self.set_a(self.a + 0x6);
+                self.set_a(self.a.wrapping_add(0x06));
             }
-        } else {
-            // after a subtraction, only adjust if (half-)carry occurred
-            if self.get_flag(Flags::C) == 1 {
-                self.set_a(self.a - 0x60);
-            }
-            if self.get_flag(Flags::H) == 1 {
-                self.set_a(self.a - 0x6);
-            }
+        } else if self.get_flag(Flags::C) == 1 {
+            carry = true;
+            self.set_a(self.a.wrapping_add(if self.get_flag(Flags::H) == 1 {
+                0x9a
+            } else {
+                0xa0
+            }));
+        } else if self.get_flag(Flags::H) == 1 {
+            self.set_a(self.a.wrapping_add(0xfa));
         }
-        // these flags are always updated
-        self.set_flag(Flags::Z, self.a == 0); // the usual z flag
-        self.set_flag(Flags::H, false); // h flag is always cleared
+
+        self.set_flag(Flags::Z, self.a == 0);
+        self.set_flag(Flags::H, false);
+        self.set_flag(Flags::C, carry);
+        // self.mem_add_pc(1); // VERIFY
         4
     }
     fn execute_opcode(&mut self, opcode: u8, is_callback: bool) -> u32 {
@@ -988,10 +1001,14 @@ impl Cpu {
             0x04 => self.inc_n(Reg::B),
             0x05 => self.dec_n(Reg::B),
             0x06 => self.ld_nn_n(Reg::B),
-            0x07 => self.rlc_n(Reg::A),
+            0x07 => {
+                let r = self.rlc_n(Reg::A);
+                self.set_flag(Flags::Z, false); // VERIFY
+                r
+            }
             0x08 => {
                 let address = self.get_next_16();
-                let stack_pointer = self.memory.borrow().get_stack_pointer();
+                let stack_pointer = self.mem_read_sp();
                 self.mem_write_u16(address, stack_pointer);
                 20
             }
@@ -1001,15 +1018,26 @@ impl Cpu {
             0x0c => self.inc_n(Reg::C),
             0x0d => self.dec_n(Reg::C),
             0x0e => self.ld_nn_n(Reg::C),
-            0x0f => self.rrc_n(Reg::A),
-            0x10 => 4,
+            0x0f => {
+                let v = self.rrc_n(Reg::A);
+                self.set_flag(Flags::Z, false); // VERIFY
+                v
+            }
+            0x10 => {
+                // self.mem_add_pc(1); // VERIFY
+                4
+            }
             0x11 => self.ld_n_nn(Reg::DE),
             0x12 => self.ld_n_a(Reg::DE),
             0x13 => self.inc_nn(Reg::DE),
             0x14 => self.inc_n(Reg::D),
             0x15 => self.dec_n(Reg::D),
             0x16 => self.ld_nn_n(Reg::D),
-            0x17 => self.rl_n(Reg::A),
+            0x17 => {
+                let r = self.rl_n(Reg::A);
+                self.set_flag(Flags::Z, false); // VERIFY
+                r
+            }
             0x18 => self.jr_cc_n(true),
             0x19 => self.add_hl_n(Reg::DE),
             0x1a => self.ld_a_n(Reg::DE),
@@ -1017,11 +1045,15 @@ impl Cpu {
             0x1c => self.inc_n(Reg::E),
             0x1d => self.dec_n(Reg::E),
             0x1e => self.ld_nn_n(Reg::E),
-            0x1f => self.rr_n(Reg::A),
+            0x1f => {
+                let r = self.rr_n(Reg::A);
+                self.set_flag(Flags::Z, false); // VERIFY
+                r
+            }
             0x20 => self.jr_cc_n(self.get_flag(Flags::Z) == 0),
             0x21 => self.ld_n_nn(Reg::HL),
             0x22 => {
-                let address = self.get_reg_u16(&Reg::HL);
+                let address = self.get_hl();
                 self.mem_write(address, self.a);
                 self.set_hl(address.wrapping_add(1));
                 8
@@ -1034,7 +1066,7 @@ impl Cpu {
             0x28 => self.jr_cc_n(self.get_flag(Flags::Z) == 1),
             0x29 => self.add_hl_n(Reg::HL),
             0x2a => {
-                let address = self.get_reg_u16(&Reg::HL);
+                let address = self.get_hl();
                 let data = self.mem_read(address);
                 self.set_a(data);
                 self.set_hl(address.wrapping_add(1));
@@ -1053,17 +1085,20 @@ impl Cpu {
             0x30 => self.jr_cc_n(self.get_flag(Flags::C) == 0),
             0x31 => self.ld_n_nn(Reg::SP),
             0x32 => {
-                let address = self.get_reg_u16(&Reg::HL);
+                let address = self.get_hl();
                 self.mem_write(address, self.a);
                 self.set_hl(address.wrapping_sub(1));
                 8
             }
-            0x33 => self.inc_nn(Reg::SP),
+            0x33 => {
+                self.memory.borrow_mut().increment_stack_pointer(1);
+                8
+            }
             0x34 => self.inc_n(Reg::HL),
             0x35 => self.dec_n(Reg::HL),
             0x36 => {
                 let data = self.get_next_8();
-                self.mem_write(self.get_reg_u16(&Reg::HL), data);
+                self.mem_write(self.get_hl(), data);
                 12
             }
             0x37 => {
@@ -1075,13 +1110,16 @@ impl Cpu {
             0x38 => self.jr_cc_n(self.get_flag(Flags::C) == 1),
             0x39 => self.add_hl_n(Reg::SP),
             0x3a => {
-                let address = self.get_reg_u16(&Reg::HL);
+                let address = self.get_hl();
                 let data = self.mem_read(address);
                 self.set_a(data);
                 self.set_hl(address.wrapping_sub(1));
                 8
             }
-            0x3b => self.dec_nn(Reg::SP),
+            0x3b => {
+                self.memory.borrow_mut().decrement_stack_pointer(1);
+                8
+            }
             0x3c => self.inc_n(Reg::A),
             0x3d => self.dec_n(Reg::A),
             0x3e => self.ld_r1_r2(Reg::A, self.get_next_8()),
@@ -1149,7 +1187,7 @@ impl Cpu {
                 self.is_halted = true;
                 4
             }
-            0x77 => self.ld_n_a(Reg::HL),
+            0x77 => self.ld_hl_r2(Reg::A),
             0x78 => self.ld_r1_r2(Reg::A, self.b),
             0x79 => self.ld_r1_r2(Reg::A, self.c),
             0x7a => self.ld_r1_r2(Reg::A, self.d),
@@ -1257,13 +1295,14 @@ impl Cpu {
             0xde => self.subc_a_n(Reg::N8),
             0xdf => self.rst_n(0x0018),
             0xe0 => {
-                let address = self.get_next_8();
-                self.mem_write(0xff00 | address as u16, self.a);
+                let address = 0xff00 | self.get_next_8() as u16;
+                self.mem_write(address, self.a);
                 12
             }
             0xe1 => self.pop_nn(Reg::HL),
             0xe2 => {
-                self.mem_write((0xff00 as u16).wrapping_add(self.c as u16), self.a);
+                self.mem_write(0xff00 | (self.c as u16), self.a);
+                // self.mem_add_pc(1); // VERIFY
                 8
             }
             0xe5 => self.push_nn(Reg::HL),
@@ -1280,7 +1319,7 @@ impl Cpu {
                 16
             }
             0xe9 => {
-                let address = self.get_reg_u16(&Reg::HL);
+                let address = self.get_hl();
                 self.mem_write_pc(address);
                 4
             }
@@ -1288,13 +1327,14 @@ impl Cpu {
             0xee => self.xor_n(Reg::N8),
             0xef => self.rst_n(0x0028),
             0xf0 => {
-                let address = self.get_next_8();
-                self.set_a(self.mem_read((0xff00 as u16).wrapping_add(address as u16)));
+                let address = 0xff00 | self.get_next_8() as u16;
+                self.set_a(self.mem_read(address));
                 4
             }
             0xf1 => self.pop_nn(Reg::AF),
             0xf2 => {
-                let data = self.mem_read((0xff00 as u16).wrapping_add(self.c as u16));
+                let data = self.mem_read(0xff00 | self.c as u16);
+                // self.mem_add_pc(1); // VERIFY
                 self.set_a(data);
                 8
             }
@@ -1303,17 +1343,17 @@ impl Cpu {
             0xf6 => self.or_n(Reg::N8),
             0xf7 => self.rst_n(0x0030),
             0xf8 => {
-                let address = self.get_next_8();
-                let sp = self.mem_read_sp();
-                self.set_hl(sp.wrapping_add(address as u16));
-                self.set_flag(Flags::H, (sp & 0x000f) + (address as u16 & 0x000f) > 0x000f);
-                self.set_flag(Flags::C, (sp & 0x00ff) + (address as u16 & 0x00ff) > 0x00ff);
+                let data = self.get_next_8() as u16;
+                let address = self.mem_read_sp();
+                self.set_flag(Flags::H, test_flag_add_16(address, data, Flags::H));
+                self.set_flag(Flags::C, test_flag_add_16(address, data, Flags::C));
                 self.set_flag(Flags::Z, false);
                 self.set_flag(Flags::N, false);
+                self.set_hl(address.wrapping_add(data));
                 12
             }
             0xf9 => {
-                let address = self.get_reg_u16(&Reg::HL);
+                let address = self.get_hl();
                 self.mem_write_sp(address);
                 8
             }
@@ -1322,8 +1362,6 @@ impl Cpu {
             0xfe => self.cp_n(Reg::N8),
             0xff => self.rst_n(0x0038),
             0xd3 | 0xdb | 0xdd | 0xe3 | 0xe4 | 0xeb | 0xec | 0xed | 0xf4 | 0xfc | 0xfd => {
-                let output = self.memory.borrow().get_linkport_output();
-                println!("{}\n\n", output);
                 panic!("Unexisting code {:X}", opcode)
             }
         }
@@ -1349,6 +1387,23 @@ impl Cpu {
                 self.get_flag(Flags::C),
             ),
         );
+        if COMPARE {
+            let line = self.file.lines().nth(self.counter).unwrap();
+            let code = line.split(' ').nth(19).unwrap();
+            println!("ORIGINAL LINE: {} ", line);
+            println!("PROGRAM COUNTER: 00:{:04X}", self.mem_read_pc());
+            if code != format!("00:{:04X}", self.mem_read_pc()) {
+                println!("Different opcode");
+                use std::io::{stdin, stdout, Read, Write};
+                let mut stdout = stdout();
+                stdout.write_all(b"Press Enter to continue...").unwrap();
+                stdout.flush().unwrap();
+                stdin().read_exact(&mut [0]).unwrap();
+            }
+        }
+        self.counter += 1;
+        //println!("Line: {}", self.counter);
+
         let opcode = self.get_next_8();
         self.execute_opcode(opcode, false)
     }

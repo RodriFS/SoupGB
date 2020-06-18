@@ -7,5 +7,9 @@ pub const TIMER_COUNTER_ADDRESS: u16 = 0xff05;
 pub const TIMER_CONTROL_ADDRESS: u16 = 0xff07;
 pub const TIMER_MODULO_ADDRESS: u16 = 0xff06;
 
-pub const DEBUG: bool = false;
+pub const DEBUG_TIMERS: bool = false;
+pub const DEBUG_CPU: bool = false;
+pub const DEBUG_GPU: bool = false;
+
 pub const STEPS: bool = false;
+pub const COMPARE: bool = false;

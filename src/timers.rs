@@ -92,7 +92,7 @@ impl Timers {
     }
 
     fn print_debug_info(&self) {
-        if !DEBUG {
+        if !DEBUG_TIMERS {
             return;
         }
         println!("TIMER: -----------------------------");

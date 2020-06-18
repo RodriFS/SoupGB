@@ -1,3 +1,4 @@
+use super::debugger::print_debug_gpu_info;
 use super::interrupts::Interrupts;
 use super::memory::Memory;
 use super::utils::{clear_bit_at, get_bit_at, set_bit_at};
@@ -42,7 +43,7 @@ impl Gpu {
     fn increment_scanline(&mut self) -> u8 {
         let mut scan_line = self.mem_read(0xff44);
         scan_line = scan_line.wrapping_add(1);
-        self.memory.borrow_mut().write_scanline(scan_line);
+        self.mem_write_scanline(scan_line);
         scan_line
     }
 
@@ -103,8 +104,16 @@ impl Gpu {
         self.mem_write(0xff41, clear_bit_at(lcd_status, 2));
     }
 
+    fn get_ly(&self) -> u8 {
+        self.mem_read(0xff44)
+    }
+
+    fn get_lyc(&self) -> u8 {
+        self.mem_read(0xff45)
+    }
+
     fn set_lcd_mode(&mut self) {
-        let current_line = self.mem_read(0xff44);
+        let current_line = self.get_ly();
         let current_mode = self.get_lcd_status();
         let mut req_int = false;
 
@@ -114,30 +123,30 @@ impl Gpu {
             LcdMode::VBlank
         } else {
             match self.scan_line_counter {
-                0..=204 => {
+                0..=80 => {
                     self.set_lcd_status(LcdMode::ReadingOAMRAM);
                     req_int = self.is_interrupt_requested(5);
+                    //println!("Next video mode in: {}", 80 - self.scan_line_counter);
                     LcdMode::ReadingOAMRAM
                 }
-                205..=284 => {
+                81..=252 => {
                     self.set_lcd_status(LcdMode::TransfToLCDDriver);
+                    //println!("Next video mode in: {}", 252 - self.scan_line_counter);
                     LcdMode::TransfToLCDDriver
                 }
-                285..=456 => {
+                _ => {
                     self.set_lcd_status(LcdMode::HBlank);
                     req_int = self.is_interrupt_requested(3);
+                    //println!("Next video mode in: {}", 456 - self.scan_line_counter);
                     LcdMode::HBlank
                 }
-                _ => panic!("Unreachable scanline counter"),
             }
         };
 
-        // just entered a new mode so request interupt
         if req_int && (mode != current_mode) {
             self.req_interrupt(1);
         }
-        // check the conincidence flag
-        if current_line == self.mem_read(0xff45) {
+        if current_line == self.get_lyc() {
             self.set_coincidence_flag();
             if self.is_interrupt_requested(6) {
                 self.req_interrupt(1);
@@ -150,13 +159,19 @@ impl Gpu {
     fn draw_scan_line(&self) {}
 
     pub fn update(&mut self, frame_cycles: u32) {
-        self.set_lcd_mode();
+        print_debug_gpu_info(
+            self.mem_read(0xff40),
+            self.mem_read(0xff41),
+            self.mem_read(0xff44),
+        );
+        //println!("SCANLINE COUNTER: {}", self.scan_line_counter);
         if !self.is_lcd_enabled() {
             self.scan_line_counter = 0;
             self.mem_write_scanline(0);
             self.set_lcd_status(LcdMode::VBlank);
             return;
         }
+        self.set_lcd_mode();
 
         self.scan_line_counter += frame_cycles;
         if self.scan_line_counter > 456 {
