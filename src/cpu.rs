@@ -1185,6 +1185,7 @@ impl Cpu {
             0x75 => self.ld_hl_r2(Reg::L),
             0x76 => {
                 self.is_halted = true;
+                self.interrupts.borrow_mut().is_halted = true;
                 4
             }
             0x77 => self.ld_hl_r2(Reg::A),
@@ -1309,13 +1310,13 @@ impl Cpu {
             0xe6 => self.and_n(Reg::N8),
             0xe7 => self.rst_n(0x0020),
             0xe8 => {
-                let data = self.get_next_8() as u16;
+                let data = self.get_next_8() as i8 as u16;
                 let address = self.mem_read_sp();
                 self.set_flag(Flags::Z, false);
                 self.set_flag(Flags::N, false);
-                self.set_flag(Flags::H, test_flag_add_16(address, data, Flags::H));
-                self.set_flag(Flags::C, test_flag_add_16(address, data, Flags::C));
-                self.mem_write_sp(address.wrapping_add(data));
+                self.set_flag(Flags::H, (address & 0x0f) + (data & 0x0f) > 0x0f);
+                self.set_flag(Flags::C, (address & 0xff) + (data & 0xff) > 0xff);
+                self.mem_write_sp(address.wrapping_add(data as u16));
                 16
             }
             0xe9 => {
@@ -1343,10 +1344,10 @@ impl Cpu {
             0xf6 => self.or_n(Reg::N8),
             0xf7 => self.rst_n(0x0030),
             0xf8 => {
-                let data = self.get_next_8() as u16;
+                let data = self.get_next_8() as i8 as u16;
                 let address = self.mem_read_sp();
-                self.set_flag(Flags::H, test_flag_add_16(address, data, Flags::H));
-                self.set_flag(Flags::C, test_flag_add_16(address, data, Flags::C));
+                self.set_flag(Flags::H, (address & 0x0f) + (data & 0x0f) > 0x0f);
+                self.set_flag(Flags::C, (address & 0xff) + (data & 0xff) > 0xff);
                 self.set_flag(Flags::Z, false);
                 self.set_flag(Flags::N, false);
                 self.set_hl(address.wrapping_add(data));
@@ -1386,6 +1387,7 @@ impl Cpu {
                 self.get_flag(Flags::H),
                 self.get_flag(Flags::C),
             ),
+            self.is_halted,
         );
         if COMPARE {
             let line = self.file.lines().nth(self.counter).unwrap();
@@ -1404,7 +1406,10 @@ impl Cpu {
         self.counter += 1;
         //println!("Line: {}", self.counter);
 
-        let opcode = self.get_next_8();
-        self.execute_opcode(opcode, false)
+        if !self.interrupts.borrow().is_halted {
+            let opcode = self.get_next_8();
+            return self.execute_opcode(opcode, false);
+        }
+        4
     }
 }

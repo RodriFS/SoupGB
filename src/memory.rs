@@ -25,7 +25,7 @@ pub struct Memory {
 }
 
 impl Memory {
-    pub fn new(cartridge_memory: Vec<u8>) -> Self {
+    pub fn default() -> Self {
         let mut internal_memory = [0; 0x10000];
         internal_memory[0xFF10] = 0x80;
         internal_memory[0xFF11] = 0xBF;
@@ -49,17 +49,10 @@ impl Memory {
 
         internal_memory[0xFF41] = 0x84;
 
-        internal_memory[0x0000..0x7FFF].clone_from_slice(&cartridge_memory[0x0000..0x7FFF]);
-
-        let memory_bank_type = match cartridge_memory[0x147] {
-            1 | 2 | 3 => MBC::MB1,
-            5 | 6 => MBC::MB2,
-            _ => MBC::NONE,
-        };
         Self {
-            memory_bank_type,
+            memory_bank_type: MBC::NONE,
             current_rom_bank: 1,
-            cartridge_memory,
+            cartridge_memory: Vec::new(),
             internal_memory,
             ram_memory: [0; 0x8000],
             current_ram_bank: 0,
@@ -68,6 +61,16 @@ impl Memory {
             stack_pointer: 0xfffe,
             program_counter: 0x100,
         }
+    }
+
+    pub fn load_rom(&mut self, cartridge_memory: Vec<u8>) {
+        self.internal_memory[0x0000..0x7FFF].clone_from_slice(&cartridge_memory[0x0000..0x7FFF]);
+        self.memory_bank_type = match cartridge_memory[0x147] {
+            1 | 2 | 3 => MBC::MB1,
+            5 | 6 => MBC::MB2,
+            _ => MBC::NONE,
+        };
+        self.cartridge_memory = cartridge_memory;
     }
 
     fn set_is_ram_enabled(&mut self, value: bool) {

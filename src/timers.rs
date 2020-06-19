@@ -29,7 +29,8 @@ impl Timers {
 
     fn get_is_clock_enabled(&self) -> bool {
         let clock = self.memory.borrow().read(TIMER_CONTROL_ADDRESS);
-        clock & 0x3 == 1
+        //clock & 0x3 == 1
+        clock >> 2 == 1
     }
 
     fn get_clock_frequency(&self) -> u8 {
@@ -100,12 +101,20 @@ impl Timers {
         println!("Divider frequency: {}", self.divider_frequency);
         println!("Timer enabled: {}", self.get_is_clock_enabled());
         println!(
-            "Timer: {}",
+            "0xff04 Divider counter: {}",
+            self.memory.borrow().read(DIVIDER_COUNTER_ADDRESS)
+        );
+        println!(
+            "0xff05 Timer counter: {}",
             self.memory.borrow().read(TIMER_COUNTER_ADDRESS)
         );
         println!(
-            "Divider: {}",
-            self.memory.borrow().read(DIVIDER_COUNTER_ADDRESS)
+            "0xff06 Timer modulo: {}",
+            self.memory.borrow().read(TIMER_MODULO_ADDRESS)
+        );
+        println!(
+            "0xff07 Timer control: {}",
+            self.memory.borrow().read(TIMER_CONTROL_ADDRESS)
         );
     }
 }

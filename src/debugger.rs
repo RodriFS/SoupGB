@@ -277,6 +277,7 @@ pub fn print_debug_cpu_info(
     pc: u16,
     sp: u16,
     flags: (u8, u8, u8, u8),
+    halted: bool,
 ) {
     let (af, bc, de, hl) = reg;
     let (z, n, h, c) = flags;
@@ -293,7 +294,7 @@ pub fn print_debug_cpu_info(
         println!("Z: {}, N: {}, H: {}, C: {}", z, n, h, c);
         println!("00:{:04X}: | {:02X}{:04X}", pc, opcode, n16);
         print_instruction(opcode, n16.swap_bytes());
-
+        println!("Halted: {}", halted)
         // println!("Total Cycles: {}", self.total_cycles);
         // if self.memory.borrow().get_program_counter() == 0x2817 {
         //     println!("WE HAVE VISUALS");

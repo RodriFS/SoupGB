@@ -6,6 +6,7 @@ use std::rc::Rc;
 pub struct Interrupts {
     memory: Rc<RefCell<Memory>>,
     master_enabled: bool,
+    pub is_halted: bool,
 }
 
 impl Interrupts {
@@ -13,6 +14,7 @@ impl Interrupts {
         Self {
             memory,
             master_enabled: false,
+            is_halted: false,
         }
     }
 
@@ -23,10 +25,11 @@ impl Interrupts {
         self.master_enabled = false;
     }
 
-    pub fn request_interrupt(&self, bit: u8) {
+    pub fn request_interrupt(&mut self, bit: u8) {
         let interrupt_flags = self.memory.borrow().read(0xff0f);
         let modified_flag = set_bit_at(interrupt_flags, bit);
-        self.memory.borrow_mut().write(0xff0f, modified_flag)
+        self.memory.borrow_mut().write(0xff0f, modified_flag);
+        self.is_halted = false;
     }
 
     fn interrupt_execution(&mut self, request: u8, interrupt: u8) {
@@ -35,9 +38,7 @@ impl Interrupts {
         self.memory.borrow_mut().write(0xff0f, clear_request);
 
         let pc = self.memory.borrow().get_program_counter();
-        self.memory
-            .borrow_mut()
-            .push_to_stack(pc);
+        self.memory.borrow_mut().push_to_stack(pc);
 
         let pc = match interrupt {
             0 => 0x40,

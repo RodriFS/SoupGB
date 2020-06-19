@@ -57,8 +57,8 @@ pub fn test_flag_sub(a: u8, b: u8, flag: Flags) -> bool {
 pub fn test_flag_sub_carry(a: u8, b: u8, carry: u8, flag: Flags) -> bool {
     match flag {
         Flags::Z => a.wrapping_sub(b).wrapping_sub(carry) == 0,
-        Flags::C => a < b,
-        Flags::H => (a as u16 & 0x0f) < ((b as u16 & 0x0f) + (carry as u16 & 0xff)),
+        Flags::C => (a as u16) < ((b as u16) + (carry as u16)),
+        Flags::H => (a as u16 & 0x0f) < ((b as u16 & 0x0f) + (carry as u16 & 0x0f)),
         _ => panic!("Not supported fn test_flag_add_u8"),
     }
 }
