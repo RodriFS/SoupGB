@@ -1,4 +1,6 @@
 use super::constants::*;
+use super::memory::{Bmode, MBC};
+
 fn print_instruction(instruction: u8, code: u16) {
     match instruction {
         0x00 => println!("NOP"),                           // 0x00
@@ -318,4 +320,30 @@ pub fn print_debug_gpu_info(lcdc: u8, lcd_stat: u8, ly: u8) {
         println!("LCDC: {:02X}  STAT: {:02X}  LY: {}", lcdc, lcd_stat, ly);
         // Next video mode: 18
     }
+}
+
+pub fn print_debug_timers_info(cf: u32, df: u32, ce: bool, dr: u8, tima: u8, tma: u8, tac: u8) {
+    if !DEBUG_TIMERS {
+        return;
+    }
+    println!("TIMER: -----------------------------");
+    println!("Clock frequency: {}", cf);
+    println!("Divider frequency: {}", df);
+    println!("Timer enabled: {}", ce);
+    println!("0xff04 Divider counter: {}", dr);
+    println!("0xff05 Timer counter: {}", tima);
+    println!("0xff06 Timer modulo: {}", tma);
+    println!("0xff07 Timer control: {}", tac);
+}
+
+pub fn print_debug_memory_info(cromb: u8, cramb: u8, mbt: MBC, ire: bool, bm: Bmode) {
+    if !DEBUG_MEMORY {
+        return;
+    }
+    println!("MEMORY: -----------------------------");
+    println!("Current ROM bank: {}", cromb);
+    println!("Current RAM bank: {}", cramb);
+    println!("memory bank type: {:?}", mbt);
+    println!("is_ram_enabled: {}", ire);
+    println!("banking_mode: {:?}", bm);
 }

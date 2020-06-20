@@ -1,5 +1,5 @@
 use super::constants::*;
-use super::debugger::print_debug_cpu_info;
+use super::debugger::{print_debug_cpu_info, print_debug_memory_info};
 use super::interrupts::Interrupts;
 use super::memory::Memory;
 use super::utils::*;
@@ -145,17 +145,6 @@ impl Cpu {
     fn mem_read(&self, address: u16) -> u8 {
         self.memory.borrow().read(address)
     }
-    fn get_reg_u16(&self, reg: &Reg) -> u16 {
-        let address = match reg {
-            Reg::AF => [self.a, self.f],
-            Reg::BC => [self.b, self.c],
-            Reg::DE => [self.d, self.e],
-            Reg::HL => [self.h, self.l],
-            Reg::SP => self.mem_read_sp().to_be_bytes(),
-            _ => panic!("Unsupported fn get_reg_u16"),
-        };
-        BigEndian::read_u16(&address)
-    }
     fn get_reg_u8(&self, reg: &Reg) -> u8 {
         match reg {
             Reg::A => self.a,
@@ -271,7 +260,17 @@ impl Cpu {
         self.l = data;
         self.l
     }
-
+    fn get_reg_u16(&self, reg: &Reg) -> u16 {
+        match reg {
+            Reg::AF => self.get_af(),
+            Reg::BC => self.get_bc(),
+            Reg::DE => self.get_de(),
+            Reg::HL => self.get_hl(),
+            Reg::SP => self.mem_read_sp(),
+            _ => panic!("Unsupported fn get_reg_u16"),
+        }
+    }
+    //// INSTRUCTIONS
     fn ld_nn_n(&mut self, reg: Reg) -> u32 {
         let next_8 = self.get_next_8();
         let _ = match reg {
@@ -565,7 +564,7 @@ impl Cpu {
         let current_address = self.mem_read_pc();
         self.mem_push_stack(current_address);
         self.mem_write_pc(new_address);
-        32
+        16
     }
     fn di(&self) -> u32 {
         self.interrupts.borrow_mut().clear_master_enabled();
@@ -1388,6 +1387,13 @@ impl Cpu {
                 self.get_flag(Flags::C),
             ),
             self.is_halted,
+        );
+        print_debug_memory_info(
+            self.memory.borrow().current_rom_bank,
+            self.memory.borrow().current_ram_bank,
+            self.memory.borrow().memory_bank_type.clone(),
+            self.memory.borrow().is_ram_enabled,
+            self.memory.borrow().banking_mode.clone(),
         );
         if COMPARE {
             let line = self.file.lines().nth(self.counter).unwrap();

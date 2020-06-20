@@ -10,6 +10,7 @@ pub const TIMER_CONTROL_ADDRESS: u16 = 0xff07;
 pub const DEBUG_TIMERS: bool = false;
 pub const DEBUG_CPU: bool = false;
 pub const DEBUG_GPU: bool = false;
+pub const DEBUG_MEMORY: bool = false;
 
 pub const STEPS: bool = false;
 pub const COMPARE: bool = false;

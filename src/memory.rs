@@ -1,11 +1,14 @@
-#[derive(Debug)]
+use super::utils::get_bit_at;
+
+#[allow(non_camel_case_types)]
+#[derive(Debug, Clone)]
 pub enum MBC {
-    NONE,
-    MB1,
-    MB2,
+    ROM_ONLY,
+    MBC1,
+    MBC2,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Bmode {
     RAM,
     ROM,
@@ -50,7 +53,7 @@ impl Memory {
         internal_memory[0xFF41] = 0x84;
 
         Self {
-            memory_bank_type: MBC::NONE,
+            memory_bank_type: MBC::ROM_ONLY,
             current_rom_bank: 1,
             cartridge_memory: Vec::new(),
             internal_memory,
@@ -66,9 +69,9 @@ impl Memory {
     pub fn load_rom(&mut self, cartridge_memory: Vec<u8>) {
         self.internal_memory[0x0000..0x7FFF].clone_from_slice(&cartridge_memory[0x0000..0x7FFF]);
         self.memory_bank_type = match cartridge_memory[0x147] {
-            1 | 2 | 3 => MBC::MB1,
-            5 | 6 => MBC::MB2,
-            _ => MBC::NONE,
+            1 | 2 | 3 => MBC::MBC1,
+            5 | 6 => MBC::MBC2,
+            _ => MBC::ROM_ONLY,
         };
         self.cartridge_memory = cartridge_memory;
     }
@@ -107,6 +110,9 @@ impl Memory {
                     .to_owned()
             }
             0xA000..=0xBFFF => {
+                if !self.is_ram_enabled {
+                    return 0xff;
+                }
                 let ram_address = address - 0xA000;
                 self.ram_memory[(ram_address + (self.current_ram_bank as u16 * 0x2000)) as usize]
             }
@@ -170,31 +176,38 @@ impl Memory {
 
     pub fn handle_bank_type(&mut self, address: u16, data: u8) {
         match self.memory_bank_type {
-            MBC::NONE if address > 0x8000 => {
+            MBC::ROM_ONLY if address > 0x8000 => {
                 panic!("Trying to write to address greater than 0x8000")
             }
-            MBC::MB1 | MBC::MB2 if address <= 0x7fff => {}
-            MBC::MB1 | MBC::MB2 if address <= 0x1fff => match data & 0xf {
+            MBC::MBC2 if get_bit_at(address.to_be_bytes()[1], 4) => {}
+            MBC::MBC1 | MBC::MBC2 if address <= 0x1fff => match data & 0xf {
                 0x0a => self.set_is_ram_enabled(true),
                 0x00 => self.set_is_ram_enabled(false),
                 _ => {}
             },
-            MBC::MB1 | MBC::MB2 if (address >= 0x2000) && (address <= 0x3fff) => {
-                let lower_bits = data & 0xf;
-                let upper_bits = self.current_rom_bank & 0xe0;
-                let mut next_rom_bank = upper_bits | lower_bits;
-                if next_rom_bank == 0 {
-                    next_rom_bank += 1;
+            MBC::MBC1 if (address >= 0x2000) && (address <= 0x3fff) => {
+                let test = (self.current_rom_bank & 224) | (data & 31);
+                if test == 0 {
+                    self.set_rom_bank(1);
+                } else {
+                    self.set_rom_bank(test);
                 }
-                self.set_rom_bank(next_rom_bank);
             }
-            MBC::MB1 if (address >= 0x4000) && (address <= 0x5fff) => match self.banking_mode {
+            MBC::MBC2 if (address >= 0x2000) && (address <= 0x3fff) => {
+                let lower_bits = data & 0xf;
+                if lower_bits == 0 {
+                    self.set_rom_bank(1);
+                } else {
+                    self.set_rom_bank(lower_bits);
+                }
+            }
+            MBC::MBC1 if (address >= 0x4000) && (address <= 0x5fff) => match self.banking_mode {
                 Bmode::ROM => {
-                    let upper_bits = data & 0x1f;
                     let lower_bits = self.current_rom_bank & 0xe1;
-                    let mut next_rom_bank = upper_bits | lower_bits;
+                    let upper_bits = data & 0x1f;
+                    let next_rom_bank = upper_bits | lower_bits;
                     if next_rom_bank == 0 {
-                        next_rom_bank += 1;
+                        self.set_rom_bank(1);
                     }
                     self.set_rom_bank(next_rom_bank);
                 }
@@ -202,18 +215,21 @@ impl Memory {
                     self.set_ram_bank(data & 0x3);
                 }
             },
-            MBC::MB1 if (address >= 0x6000) && (address <= 0x7FFF) => match address & 0x3 {
-                0x00 => self.set_banking_mode(Bmode::ROM),
+            MBC::MBC1 if (address >= 0x6000) && (address <= 0x7FFF) => match data & 0x1 {
+                0x00 => {
+                    self.set_banking_mode(Bmode::ROM);
+                    self.set_rom_bank(0);
+                }
                 0x01 => self.set_banking_mode(Bmode::RAM),
                 _ => panic!("Unsupported banking mode"),
             },
             _ => panic!("MBC case not supported"),
-        }
+        };
     }
 
     pub fn write(&mut self, address: u16, data: u8) {
         match address {
-            0x0000..=0x800 => self.handle_bank_type(address, data),
+            0x0000..=0x7fff => self.handle_bank_type(address, data),
             0xa000..=0xbfff if self.is_ram_enabled => {
                 let bank_address = address - 0xa000;
                 self.set_ram(bank_address + self.current_ram_bank as u16 * 0x2000, data);

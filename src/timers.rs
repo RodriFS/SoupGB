@@ -1,4 +1,5 @@
 use super::constants::*;
+use super::debugger::print_debug_timers_info;
 use super::interrupts::Interrupts;
 use super::memory::Memory;
 use std::cell::RefCell;
@@ -75,7 +76,15 @@ impl Timers {
     pub fn update(&mut self, frame_cycles: u32) {
         self.divider_counter += frame_cycles;
         if self.divider_counter > (CLOCKSPEED / self.divider_frequency) {
-            self.print_debug_info();
+            print_debug_timers_info(
+                self.clock_frequency,
+                self.divider_frequency,
+                self.get_is_clock_enabled(),
+                self.memory.borrow().read(DIVIDER_COUNTER_ADDRESS),
+                self.memory.borrow().read(TIMER_COUNTER_ADDRESS),
+                self.memory.borrow().read(TIMER_MODULO_ADDRESS),
+                self.memory.borrow().read(TIMER_CONTROL_ADDRESS),
+            );
             self.reset_divider_counter();
             self.update_divider();
         }
@@ -86,35 +95,8 @@ impl Timers {
 
         self.timer_counter += frame_cycles;
         if self.timer_counter > (CLOCKSPEED / self.clock_frequency) {
-            self.print_debug_info();
             self.reset_timer_counter();
             self.update_timer();
         }
-    }
-
-    fn print_debug_info(&self) {
-        if !DEBUG_TIMERS {
-            return;
-        }
-        println!("TIMER: -----------------------------");
-        println!("Clock frequency: {}", self.clock_frequency);
-        println!("Divider frequency: {}", self.divider_frequency);
-        println!("Timer enabled: {}", self.get_is_clock_enabled());
-        println!(
-            "0xff04 Divider counter: {}",
-            self.memory.borrow().read(DIVIDER_COUNTER_ADDRESS)
-        );
-        println!(
-            "0xff05 Timer counter: {}",
-            self.memory.borrow().read(TIMER_COUNTER_ADDRESS)
-        );
-        println!(
-            "0xff06 Timer modulo: {}",
-            self.memory.borrow().read(TIMER_MODULO_ADDRESS)
-        );
-        println!(
-            "0xff07 Timer control: {}",
-            self.memory.borrow().read(TIMER_CONTROL_ADDRESS)
-        );
     }
 }
