@@ -28,28 +28,45 @@ impl Timers {
         }
     }
 
+    fn get_div(&self) -> u8 {
+        self.memory.borrow().read(DIVIDER_COUNTER_ADDRESS)
+    }
+    fn set_div(&mut self, data: u8) {
+        self.memory
+            .borrow_mut()
+            .set_rom(DIVIDER_COUNTER_ADDRESS, data);
+    }
+    fn get_tima(&self) -> u8 {
+        self.memory.borrow().read(TIMER_COUNTER_ADDRESS)
+    }
+    fn set_tima(&self, counter: u8) {
+        self.memory
+            .borrow_mut()
+            .write(TIMER_COUNTER_ADDRESS, counter);
+    }
+    fn get_tma(&self) -> u8 {
+        self.memory.borrow().read(TIMER_MODULO_ADDRESS)
+    }
+    fn get_tac(&self) -> u8 {
+        self.memory.borrow().read(TIMER_CONTROL_ADDRESS)
+    }
     fn get_is_clock_enabled(&self) -> bool {
-        let clock = self.memory.borrow().read(TIMER_CONTROL_ADDRESS);
-        //clock & 0x3 == 1
+        let clock = self.get_tac();
         clock >> 2 == 1
     }
-
     fn get_clock_frequency(&self) -> u8 {
-        self.memory.borrow().read(TIMER_MODULO_ADDRESS) & 0x3
+        self.get_tac() & 0x3
     }
     fn reset_divider_counter(&mut self) {
         self.divider_counter = 0;
     }
-    fn update_divider(&mut self) {
-        let mut divider_register = self.memory.borrow().read(DIVIDER_COUNTER_ADDRESS);
+    fn update_div(&mut self) {
+        let divider_register = self.get_div();
         if divider_register == 0xff {
-            divider_register = 0x0;
+            self.set_div(0x0);
         } else {
-            divider_register = self.memory.borrow().read(DIVIDER_COUNTER_ADDRESS) + 1;
+            self.set_div(divider_register + 1);
         }
-        self.memory
-            .borrow_mut()
-            .set_rom(DIVIDER_COUNTER_ADDRESS, divider_register);
     }
     fn reset_timer_counter(&mut self) {
         match self.get_clock_frequency() {
@@ -60,43 +77,43 @@ impl Timers {
             _ => panic!("Frequency not supported"),
         }
     }
-    fn update_timer(&mut self) {
-        let mut counter = self.memory.borrow().read(TIMER_COUNTER_ADDRESS);
+    fn update_tima(&mut self) {
+        let mut counter = self.get_tima();
         if counter == 0xff {
-            counter = self.memory.borrow().read(TIMER_MODULO_ADDRESS);
+            counter = self.get_tma();
             self.interrupts.borrow_mut().request_interrupt(2);
         } else {
             counter += 1;
         }
-        self.memory
-            .borrow_mut()
-            .write(TIMER_COUNTER_ADDRESS, counter);
+        self.set_tima(counter);
     }
-
-    pub fn update(&mut self, frame_cycles: u32) {
-        self.divider_counter += frame_cycles;
+    pub fn update(&mut self, opcode_cycles: u32) {
+        let mut print_debug = false;
+        self.divider_counter += opcode_cycles;
         if self.divider_counter > (CLOCKSPEED / self.divider_frequency) {
+            print_debug = true;
+            self.reset_divider_counter();
+            self.update_div();
+        }
+
+        if self.get_is_clock_enabled() {
+            self.timer_counter += opcode_cycles;
+            if self.timer_counter > (CLOCKSPEED / self.clock_frequency) {
+                print_debug = true;
+                self.reset_timer_counter();
+                self.update_tima();
+            }
+        }
+        if print_debug {
             print_debug_timers_info(
-                self.clock_frequency,
+                self.get_clock_frequency(),
                 self.divider_frequency,
                 self.get_is_clock_enabled(),
-                self.memory.borrow().read(DIVIDER_COUNTER_ADDRESS),
-                self.memory.borrow().read(TIMER_COUNTER_ADDRESS),
-                self.memory.borrow().read(TIMER_MODULO_ADDRESS),
-                self.memory.borrow().read(TIMER_CONTROL_ADDRESS),
+                self.get_div(),
+                self.get_tima(),
+                self.get_tma(),
+                self.get_tac(),
             );
-            self.reset_divider_counter();
-            self.update_divider();
-        }
-
-        if !self.get_is_clock_enabled() {
-            return;
-        }
-
-        self.timer_counter += frame_cycles;
-        if self.timer_counter > (CLOCKSPEED / self.clock_frequency) {
-            self.reset_timer_counter();
-            self.update_timer();
         }
     }
 }

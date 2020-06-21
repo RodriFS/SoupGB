@@ -322,7 +322,7 @@ pub fn print_debug_gpu_info(lcdc: u8, lcd_stat: u8, ly: u8) {
     }
 }
 
-pub fn print_debug_timers_info(cf: u32, df: u32, ce: bool, dr: u8, tima: u8, tma: u8, tac: u8) {
+pub fn print_debug_timers_info(cf: u8, df: u32, ce: bool, dr: u8, tima: u8, tma: u8, tac: u8) {
     if !DEBUG_TIMERS {
         return;
     }
@@ -330,10 +330,10 @@ pub fn print_debug_timers_info(cf: u32, df: u32, ce: bool, dr: u8, tima: u8, tma
     println!("Clock frequency: {}", cf);
     println!("Divider frequency: {}", df);
     println!("Timer enabled: {}", ce);
-    println!("0xff04 Divider counter: {}", dr);
-    println!("0xff05 Timer counter: {}", tima);
-    println!("0xff06 Timer modulo: {}", tma);
-    println!("0xff07 Timer control: {}", tac);
+    println!("0xff04 (DIV) Divider counter: {}", dr);
+    println!("0xff05 (TIMA) Timer counter: {}", tima);
+    println!("0xff06 (TMA) Timer modulo: {}", tma);
+    println!("0xff07 (TAC) Timer control: {:b}", tac);
 }
 
 pub fn print_debug_memory_info(cromb: u8, cramb: u8, mbt: MBC, ire: bool, bm: Bmode) {
