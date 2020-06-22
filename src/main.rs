@@ -1,33 +1,27 @@
+use gba::clock::Clock;
 use gba::constants::*;
-use gba::cpu::Cpu;
+use gba::cpu;
 use gba::debugger::steps;
-use gba::gpu::Gpu;
-use gba::interrupts::Interrupts;
+use gba::gpu;
+use gba::interrupts;
 use gba::memory::Memory;
-use gba::timers::Timers;
-use std::cell::RefCell;
+use gba::registers::Registers;
+use gba::timers;
 use std::fs::File;
 use std::io::Read;
-use std::rc::Rc;
 
 struct Emulator {
-    cpu: Cpu,
-    timers: Timers,
-    memory: Rc<RefCell<Memory>>,
-    interrupts: Rc<RefCell<Interrupts>>,
-    gpu: Gpu,
+    registers: Registers,
+    memory: Memory,
+    clock: Clock,
 }
 
 impl Emulator {
     fn new() -> Self {
-        let memory = Rc::new(RefCell::new(Memory::default()));
-        let interrupts = Rc::new(RefCell::new(Interrupts::new(Rc::clone(&memory))));
         Self {
-            cpu: Cpu::new(Rc::clone(&memory), Rc::clone(&interrupts)),
-            timers: Timers::new(Rc::clone(&memory), Rc::clone(&interrupts)),
-            gpu: Gpu::new(Rc::clone(&memory), Rc::clone(&interrupts)),
-            interrupts,
-            memory,
+            registers: Registers::default(),
+            memory: Memory::default(),
+            clock: Clock::default(),
         }
     }
 }
@@ -38,18 +32,22 @@ fn main() {
     let mut rom = File::open(args.pop().unwrap()).unwrap();
     let mut buffer = Vec::new();
     rom.read_to_end(&mut buffer).unwrap();
-    emulator.memory.borrow_mut().load_rom(buffer);
+    emulator.memory.load_rom(buffer);
 
     let refresh = std::time::Duration::from_secs_f64(1.0 / FPS as f64);
 
     loop {
         let mut frame_cycles = 0;
         while frame_cycles < MAXCYCLES {
-            let opcode_cycles = emulator.cpu.update();
+            let opcode_cycles = cpu::update(
+                &mut emulator.memory,
+                &mut emulator.clock,
+                &mut emulator.registers,
+            );
             frame_cycles += opcode_cycles;
-            emulator.timers.update(opcode_cycles);
-            emulator.gpu.update(opcode_cycles);
-            emulator.interrupts.borrow_mut().update();
+            timers::update(&mut emulator.clock, &mut emulator.memory, opcode_cycles);
+            gpu::update(&mut emulator.clock, &mut emulator.memory, opcode_cycles);
+            interrupts::update(&mut emulator.clock, &mut emulator.memory);
             steps();
         }
         std::thread::sleep(refresh);

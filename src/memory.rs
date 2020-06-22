@@ -1,4 +1,5 @@
 use super::utils::get_bit_at;
+use std::io::Write;
 
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone)]
@@ -243,7 +244,9 @@ impl Memory {
                 self.set_rom(address, data);
                 self.set_rom(0xff02, 0x81);
                 let c = self.internal_memory[0xff01] as char;
+                let mut out = std::io::stdout();
                 print!("{}", c);
+                let _ = out.flush();
             }
             0xff04 => self.set_rom(0xff04, 0),
             0xff44 => self.set_rom(address, 0),

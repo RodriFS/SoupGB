@@ -1,9 +1,7 @@
+use super::clock::Clock;
 use super::debugger::print_debug_gpu_info;
-use super::interrupts::Interrupts;
 use super::memory::Memory;
 use super::utils::{clear_bit_at, get_bit_at, set_bit_at};
-use std::cell::RefCell;
-use std::rc::Rc;
 
 #[derive(PartialEq)]
 enum LcdMode {
@@ -13,31 +11,26 @@ enum LcdMode {
     TransfToLCDDriver,
 }
 
-pub struct Gpu {
-    scan_line_counter: u32,
-    memory: Rc<RefCell<Memory>>,
-    interrupts: Rc<RefCell<Interrupts>>,
+pub struct Gpu<'a> {
+    clock: &'a mut Clock,
+    memory: &'a mut Memory,
 }
 
-impl Gpu {
-    pub fn new(memory: Rc<RefCell<Memory>>, interrupts: Rc<RefCell<Interrupts>>) -> Self {
-        Self {
-            scan_line_counter: 0,
-            memory,
-            interrupts,
-        }
+impl<'a> Gpu<'a> {
+    pub fn new(clock: &'a mut Clock, memory: &'a mut Memory) -> Self {
+        Self { clock, memory }
     }
 
     fn mem_read(&self, address: u16) -> u8 {
-        self.memory.borrow().read(address)
+        self.memory.read(address)
     }
 
     fn mem_write(&mut self, address: u16, data: u8) {
-        self.memory.borrow_mut().write(address, data);
+        self.memory.write(address, data);
     }
 
     fn mem_write_scanline(&mut self, data: u8) {
-        self.memory.borrow_mut().write_scanline(data);
+        self.memory.write_scanline(data);
     }
 
     fn increment_scanline(&mut self) -> u8 {
@@ -48,7 +41,10 @@ impl Gpu {
     }
 
     fn req_interrupt(&mut self, bit: u8) {
-        self.interrupts.borrow_mut().request_interrupt(bit);
+        let interrupt_flags = self.memory.read(0xff0f);
+        let modified_flag = set_bit_at(interrupt_flags, bit);
+        self.memory.write(0xff0f, modified_flag);
+        self.clock.is_halted = false;
     }
 
     fn is_lcd_enabled(&self) -> bool {
@@ -122,7 +118,7 @@ impl Gpu {
             req_int = self.is_interrupt_requested(4);
             LcdMode::VBlank
         } else {
-            match self.scan_line_counter {
+            match self.clock.scan_line_counter {
                 0..=80 => {
                     self.set_lcd_status(LcdMode::ReadingOAMRAM);
                     req_int = self.is_interrupt_requested(5);
@@ -157,33 +153,34 @@ impl Gpu {
     }
 
     fn draw_scan_line(&self) {}
+}
 
-    pub fn update(&mut self, frame_cycles: u32) {
-        print_debug_gpu_info(
-            self.mem_read(0xff40),
-            self.mem_read(0xff41),
-            self.mem_read(0xff44),
-        );
-        //println!("SCANLINE COUNTER: {}", self.scan_line_counter);
-        if !self.is_lcd_enabled() {
-            self.scan_line_counter = 0;
-            self.mem_write_scanline(0);
-            self.set_lcd_status(LcdMode::VBlank);
-            return;
-        }
-        self.set_lcd_mode();
+pub fn update(clock: &mut Clock, memory: &mut Memory, frame_cycles: u32) {
+    let mut gpu = Gpu::new(clock, memory);
+    print_debug_gpu_info(
+        gpu.mem_read(0xff40),
+        gpu.mem_read(0xff41),
+        gpu.mem_read(0xff44),
+    );
+    //println!("SCANLINE COUNTER: {}", self.scan_line_counter);
+    if !gpu.is_lcd_enabled() {
+        gpu.clock.scan_line_counter = 0;
+        gpu.mem_write_scanline(0);
+        gpu.set_lcd_status(LcdMode::VBlank);
+        return;
+    }
+    gpu.set_lcd_mode();
 
-        self.scan_line_counter += frame_cycles;
-        if self.scan_line_counter > 456 {
-            let scan_line = self.increment_scanline();
-            self.scan_line_counter = 0;
-            match scan_line {
-                0..=143 => self.draw_scan_line(),
-                144 => self.req_interrupt(0),
-                145..=153 => {}
-                154 => self.mem_write_scanline(0),
-                _ => panic!("Unreachable, scanline can't be greater than 153"),
-            }
+    gpu.clock.scan_line_counter += frame_cycles;
+    if gpu.clock.scan_line_counter > 456 {
+        let scan_line = gpu.increment_scanline();
+        gpu.clock.scan_line_counter = 0;
+        match scan_line {
+            0..=143 => gpu.draw_scan_line(),
+            144 => gpu.req_interrupt(0),
+            145..=153 => {}
+            154 => gpu.mem_write_scanline(0),
+            _ => panic!("Unreachable, scanline can't be greater than 153"),
         }
     }
 }

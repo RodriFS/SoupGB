@@ -7,7 +7,7 @@ pub const TIMER_COUNTER_ADDRESS: u16 = 0xff05; // TIMA
 pub const TIMER_MODULO_ADDRESS: u16 = 0xff06; // TMA
 pub const TIMER_CONTROL_ADDRESS: u16 = 0xff07; // TAC
 
-pub const DEBUG_TIMERS: bool = true;
+pub const DEBUG_TIMERS: bool = false;
 pub const DEBUG_CPU: bool = false;
 pub const DEBUG_GPU: bool = false;
 pub const DEBUG_MEMORY: bool = false;
