@@ -1,5 +1,4 @@
 use super::clock::Clock;
-use super::debugger::print_debug_gpu_info;
 use super::memory::Memory;
 use super::utils::{clear_bit_at, get_bit_at, set_bit_at};
 
@@ -21,22 +20,14 @@ impl<'a> Gpu<'a> {
         Self { clock, memory }
     }
 
-    fn mem_read(&self, address: u16) -> u8 {
-        self.memory.read(address)
-    }
-
-    fn mem_write(&mut self, address: u16, data: u8) {
-        self.memory.write(address, data);
-    }
-
     fn mem_write_scanline(&mut self, data: u8) {
         self.memory.write_scanline(data);
     }
 
     fn increment_scanline(&mut self) -> u8 {
-        let mut scan_line = self.mem_read(0xff44);
+        let mut scan_line = self.memory.read(0xff44);
         scan_line = scan_line.wrapping_add(1);
-        self.mem_write_scanline(scan_line);
+        self.memory.write_scanline(scan_line);
         scan_line
     }
 
@@ -48,11 +39,11 @@ impl<'a> Gpu<'a> {
     }
 
     fn is_lcd_enabled(&self) -> bool {
-        get_bit_at(self.mem_read(0xff40), 7)
+        get_bit_at(self.memory.read(0xff40), 7)
     }
 
     fn get_lcd_status(&self) -> LcdMode {
-        let lcd_status = self.mem_read(0xff41);
+        let lcd_status = self.memory.read(0xff41);
         match lcd_status & 0x3 {
             0x0 => LcdMode::HBlank,
             0x1 => LcdMode::VBlank,
@@ -63,7 +54,7 @@ impl<'a> Gpu<'a> {
     }
 
     fn set_lcd_status(&mut self, status: LcdMode) {
-        let lcd_status = self.mem_read(0xff41);
+        let lcd_status = self.memory.read(0xff41);
         let new_status = match status {
             LcdMode::HBlank => {
                 let temp_status = clear_bit_at(lcd_status, 1);
@@ -82,30 +73,30 @@ impl<'a> Gpu<'a> {
                 set_bit_at(temp_status, 0)
             }
         };
-        self.mem_write(0xff41, new_status);
+        self.memory.write(0xff41, new_status);
     }
 
     fn is_interrupt_requested(&self, bit: u8) -> bool {
-        let lcd_status = self.mem_read(0xff41);
+        let lcd_status = self.memory.read(0xff41);
         get_bit_at(lcd_status, bit)
     }
 
     fn set_coincidence_flag(&mut self) {
-        let lcd_status = self.mem_read(0xff41);
-        self.mem_write(0xff41, set_bit_at(lcd_status, 2));
+        let lcd_status = self.memory.read(0xff41);
+        self.memory.write(0xff41, set_bit_at(lcd_status, 2));
     }
 
     fn clear_coincidence_flag(&mut self) {
-        let lcd_status = self.mem_read(0xff41);
-        self.mem_write(0xff41, clear_bit_at(lcd_status, 2));
+        let lcd_status = self.memory.read(0xff41);
+        self.memory.write(0xff41, clear_bit_at(lcd_status, 2));
     }
 
     fn get_ly(&self) -> u8 {
-        self.mem_read(0xff44)
+        self.memory.read(0xff44)
     }
 
     fn get_lyc(&self) -> u8 {
-        self.mem_read(0xff45)
+        self.memory.read(0xff45)
     }
 
     fn set_lcd_mode(&mut self) {
@@ -157,12 +148,6 @@ impl<'a> Gpu<'a> {
 
 pub fn update(clock: &mut Clock, memory: &mut Memory, frame_cycles: u32) {
     let mut gpu = Gpu::new(clock, memory);
-    print_debug_gpu_info(
-        gpu.mem_read(0xff40),
-        gpu.mem_read(0xff41),
-        gpu.mem_read(0xff44),
-    );
-    //println!("SCANLINE COUNTER: {}", self.scan_line_counter);
     if !gpu.is_lcd_enabled() {
         gpu.clock.scan_line_counter = 0;
         gpu.mem_write_scanline(0);

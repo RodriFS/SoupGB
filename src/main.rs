@@ -1,6 +1,7 @@
 use gba::clock::Clock;
 use gba::constants::*;
 use gba::cpu;
+use gba::debugger;
 use gba::debugger::steps;
 use gba::gpu;
 use gba::interrupts;
@@ -39,6 +40,8 @@ fn main() {
     loop {
         let mut frame_cycles = 0;
         while frame_cycles < MAXCYCLES {
+            debugger::print_debug_registers_info(&emulator.registers);
+            debugger::print_debug_memory_info(&emulator.memory);
             let opcode_cycles = cpu::update(
                 &mut emulator.memory,
                 &mut emulator.clock,

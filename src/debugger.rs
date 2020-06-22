@@ -1,5 +1,7 @@
 use super::constants::*;
-use super::memory::{Bmode, MBC};
+use super::memory::Memory;
+use super::registers::Flags;
+use super::registers::Registers;
 
 fn print_instruction(instruction: u8, code: u16) {
     match instruction {
@@ -272,78 +274,79 @@ pub fn steps() {
     }
 }
 
-pub fn print_debug_cpu_info(
-    opcode: u8,
-    n16: u16,
-    reg: (u16, u16, u16, u16),
-    pc: u16,
-    sp: u16,
-    flags: (u8, u8, u8, u8),
-    halted: bool,
-) {
-    let (af, bc, de, hl) = reg;
+pub fn print_debug_registers_info(registers: &Registers) {
+    if !DEBUG_CPU {
+        return;
+    }
+    let flags = (
+        registers.get_flag(Flags::Z),
+        registers.get_flag(Flags::N),
+        registers.get_flag(Flags::H),
+        registers.get_flag(Flags::C),
+    );
     let (z, n, h, c) = flags;
+    let reg = (
+        registers.get_af(),
+        registers.get_bc(),
+        registers.get_de(),
+        registers.get_hl(),
+    );
+    let (af, bc, de, hl) = reg;
     let [reg_a, reg_f] = af.to_be_bytes();
     let [reg_b, reg_c] = bc.to_be_bytes();
     let [reg_d, reg_e] = de.to_be_bytes();
     let [reg_h, reg_l] = hl.to_be_bytes();
+    println!("\nCPU: -----------------------------");
+    println!("A: {:02X}  F: {:02X}  (AF: {:04X})", reg_a, reg_f, af);
+    println!("B: {:02X}  C: {:02X}  (BC: {:04X})", reg_b, reg_c, bc);
+    println!("D: {:02X}  E: {:02X}  (DE: {:04X})", reg_d, reg_e, de);
+    println!("H: {:02X}  L: {:02X}  (HL: {:04X})", reg_h, reg_l, hl);
+    println!("Z: {}, N: {}, H: {}, C: {}", z, n, h, c);
+}
+
+pub fn print_debug_memory_info(memory: &Memory) {
     if DEBUG_CPU {
-        println!("\nA: {:02X}  F: {:02X}  (AF: {:04X})", reg_a, reg_f, af);
-        println!("B: {:02X}  C: {:02X}  (BC: {:04X})", reg_b, reg_c, bc);
-        println!("D: {:02X}  E: {:02X}  (DE: {:04X})", reg_d, reg_e, de);
-        println!("H: {:02X}  L: {:02X}  (HL: {:04X})", reg_h, reg_l, hl);
+        let opcode = memory.get_next_8_debug();
+        let n16 = memory.get_next_16_debug();
+        let pc = memory.get_program_counter();
+        let sp = memory.get_stack_pointer();
         println!("PC: {:04X}  SP: {:04X}", pc, sp);
-        println!("Z: {}, N: {}, H: {}, C: {}", z, n, h, c);
         println!("00:{:04X}: | {:02X}{:04X}", pc, opcode, n16);
         print_instruction(opcode, n16.swap_bytes());
-        println!("Halted: {}", halted)
-        // println!("Total Cycles: {}", self.total_cycles);
-        // if self.memory.borrow().get_program_counter() == 0x2817 {
-        //     println!("WE HAVE VISUALS");
-        //     println!("WE HAVE VISUALS");
-        //     println!("WE HAVE VISUALS");
-        //     println!("WE HAVE VISUALS");
-        //     println!("WE HAVE VISUALS");
-        //     panic!();
-        // }
-        // if self.total_cycles > 7_480_232 {
-        //     panic!("UI should be loaded by now");
-        // }
     }
-}
-
-pub fn print_debug_gpu_info(lcdc: u8, lcd_stat: u8, ly: u8) {
+    if DEBUG_MEMORY {
+        let cromb = memory.current_rom_bank;
+        let cramb = memory.current_ram_bank;
+        let mbt = memory.memory_bank_type.clone();
+        let ire = memory.is_ram_enabled;
+        let bm = memory.banking_mode.clone();
+        println!("MEMORY: -----------------------------");
+        println!("Current ROM bank: {}", cromb);
+        println!("Current RAM bank: {}", cramb);
+        println!("memory bank type: {:?}", mbt);
+        println!("is_ram_enabled: {}", ire);
+        println!("banking_mode: {:?}", bm);
+    }
     if DEBUG_GPU {
-        // ROM: 01  RAM: 00  WRAM: 01  VRAM: 00
-        // IE: 00  IF: E1  IME: 0
-        // LCDC: 91  STAT: 84  LY: 00
+        let lcdc = memory.read(0xff40);
+        let lcd_stat = memory.read(0xff41);
+        let ly = memory.read(0xff44);
+        println!("GPU: -----------------------------");
         println!("LCDC: {:02X}  STAT: {:02X}  LY: {}", lcdc, lcd_stat, ly);
-        // Next video mode: 18
     }
-}
-
-pub fn print_debug_timers_info(cf: u8, df: u32, ce: bool, dr: u8, tima: u8, tma: u8, tac: u8) {
-    if !DEBUG_TIMERS {
-        return;
+    if DEBUG_TIMERS {
+        let cf = memory.get_clock_frequency();
+        let te = memory.get_is_clock_enabled();
+        let dr = memory.get_div();
+        let tima = memory.get_tima();
+        let tma = memory.get_tma();
+        let tac = memory.get_tac();
+        println!("TIMERS: -----------------------------");
+        println!("Clock frequency: {}", cf);
+        println!("Timer enabled: {}", te);
+        println!("0xff04 (DIV) Divider counter: {:02X}", dr);
+        println!("0xff05 (TIMA) Timer counter: {:02X}", tima);
+        println!("0xff06 (TMA) Timer modulo: {:02X}", tma);
+        println!("0xff07 (TAC) Timer control: {:02X}", tac);
     }
-    println!("TIMER: -----------------------------");
-    println!("Clock frequency: {}", cf);
-    println!("Divider frequency: {}", df);
-    println!("Timer enabled: {}", ce);
-    println!("0xff04 (DIV) Divider counter: {}", dr);
-    println!("0xff05 (TIMA) Timer counter: {}", tima);
-    println!("0xff06 (TMA) Timer modulo: {}", tma);
-    println!("0xff07 (TAC) Timer control: {:b}", tac);
-}
-
-pub fn print_debug_memory_info(cromb: u8, cramb: u8, mbt: MBC, ire: bool, bm: Bmode) {
-    if !DEBUG_MEMORY {
-        return;
-    }
-    println!("MEMORY: -----------------------------");
-    println!("Current ROM bank: {}", cromb);
-    println!("Current RAM bank: {}", cramb);
-    println!("memory bank type: {:?}", mbt);
-    println!("is_ram_enabled: {}", ire);
-    println!("banking_mode: {:?}", bm);
 }

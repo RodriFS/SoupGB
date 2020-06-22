@@ -1,4 +1,6 @@
+use super::constants::*;
 use super::utils::get_bit_at;
+use byteorder::{BigEndian, ByteOrder};
 use std::io::Write;
 
 #[allow(non_camel_case_types)]
@@ -26,6 +28,7 @@ pub struct Memory {
     pub banking_mode: Bmode,
     stack_pointer: u16,
     program_counter: u16,
+    pub input_clock_select: u32,
 }
 
 impl Memory {
@@ -52,7 +55,6 @@ impl Memory {
         internal_memory[0xFF49] = 0xFF;
 
         internal_memory[0xFF41] = 0x84;
-
         Self {
             memory_bank_type: MBC::ROM_ONLY,
             current_rom_bank: 1,
@@ -64,7 +66,40 @@ impl Memory {
             banking_mode: Bmode::ROM,
             stack_pointer: 0xfffe,
             program_counter: 0x100,
+            input_clock_select: 1024,
         }
+    }
+
+    pub fn get_next_8(&mut self) -> u8 {
+        let data = self.read(self.get_program_counter());
+        self.increment_program_counter(1);
+        data
+    }
+    pub fn get_next_16(&mut self) -> u16 {
+        let c = self.get_program_counter() as usize;
+        self.increment_program_counter(2);
+        let address = self.read_range(c..(c + 2));
+        BigEndian::read_u16(&[address[0], address[1]]).swap_bytes()
+    }
+
+    pub fn get_next_8_debug(&self) -> u8 {
+        self.read_memory_at_current_location()
+    }
+
+    pub fn write_u16(&mut self, address: u16, data: u16) {
+        let bytes = data.to_be_bytes();
+        self.write(address, bytes[1]);
+        self.write(address.wrapping_add(1), bytes[0]);
+    }
+
+    pub fn get_next_16_debug(&self) -> u16 {
+        let c = self.get_program_counter() as usize;
+        let address = self.read_range((c + 1)..(c + 3));
+        BigEndian::read_u16(&[address[0], address[1]])
+    }
+
+    pub fn read_memory_at_current_location(&self) -> u8 {
+        self.read(self.get_program_counter())
     }
 
     pub fn load_rom(&mut self, cartridge_memory: Vec<u8>) {
@@ -228,6 +263,43 @@ impl Memory {
         };
     }
 
+    pub fn get_div(&self) -> u8 {
+        self.read(DIVIDER_COUNTER_ADDRESS)
+    }
+    pub fn set_div(&mut self, data: u8) {
+        self.set_rom(DIVIDER_COUNTER_ADDRESS, data);
+    }
+    pub fn get_tima(&self) -> u8 {
+        self.read(TIMER_COUNTER_ADDRESS)
+    }
+    pub fn set_tima(&mut self, counter: u8) {
+        self.write(TIMER_COUNTER_ADDRESS, counter);
+    }
+    pub fn get_tma(&self) -> u8 {
+        self.read(TIMER_MODULO_ADDRESS)
+    }
+    pub fn get_tac(&self) -> u8 {
+        self.read(TIMER_CONTROL_ADDRESS)
+    }
+    pub fn get_is_clock_enabled(&self) -> bool {
+        let clock = self.get_tac();
+        clock >> 2 == 1
+    }
+
+    pub fn get_clock_frequency(&self) -> u8 {
+        self.get_tac() & 0x3
+    }
+
+    pub fn set_clock_frequency(&mut self, bits: u8) {
+        match bits {
+            0 => self.input_clock_select = 1024, // freq 4096
+            1 => self.input_clock_select = 16,   // freq 262144
+            2 => self.input_clock_select = 64,   // freq 65536
+            3 => self.input_clock_select = 256,  // freq 16382
+            _ => panic!("Frequency not supported"),
+        }
+    }
+
     pub fn write(&mut self, address: u16, data: u8) {
         match address {
             0x0000..=0x7fff => self.handle_bank_type(address, data),
@@ -249,6 +321,10 @@ impl Memory {
                 let _ = out.flush();
             }
             0xff04 => self.set_rom(0xff04, 0),
+            0xff07 => {
+                self.set_clock_frequency(data & 0x3);
+                self.set_rom(address, data)
+            }
             0xff44 => self.set_rom(address, 0),
             _ => self.set_rom(address, data),
         }
