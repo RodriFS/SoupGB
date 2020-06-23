@@ -1,20 +1,20 @@
-use super::clock::Clock;
 use super::constants::*;
 use super::memory::Memory;
 use super::registers::{Flags, Reg, Registers};
+use super::timers::Timers;
 use super::utils::*;
 
 pub struct Cpu<'a> {
     memory: &'a mut Memory,
-    clock: &'a mut Clock,
+    timers: &'a mut Timers,
     registers: &'a mut Registers,
 }
 
 impl<'a> Cpu<'a> {
-    fn new(memory: &'a mut Memory, clock: &'a mut Clock, registers: &'a mut Registers) -> Self {
+    fn new(memory: &'a mut Memory, timers: &'a mut Timers, registers: &'a mut Registers) -> Self {
         Self {
             memory,
-            clock,
+            timers,
             registers,
         }
     }
@@ -317,11 +317,11 @@ impl<'a> Cpu<'a> {
         true
     }
     fn di(&mut self) -> bool {
-        self.clock.clear_master_enabled();
+        self.timers.clear_master_enabled();
         true
     }
     fn ei(&mut self) -> bool {
-        self.clock.set_master_enabled_on();
+        self.timers.set_master_enabled_on();
         true
     }
     fn cb(&mut self) -> u32 {
@@ -1188,7 +1188,7 @@ impl<'a> Cpu<'a> {
             0x74 => self.ld_hl_r2(Reg::H),
             0x75 => self.ld_hl_r2(Reg::L),
             0x76 => {
-                self.clock.is_halted = true;
+                self.timers.is_halted = true;
                 true
             }
             0x77 => self.ld_hl_r2(Reg::A),
@@ -1351,7 +1351,7 @@ impl<'a> Cpu<'a> {
             0xd9 => {
                 let address = self.memory.pop_from_stack();
                 self.memory.set_program_counter(address);
-                self.clock.set_master_enabled_on();
+                self.timers.set_master_enabled_on();
                 true
             }
             0xda => {
@@ -1464,9 +1464,9 @@ impl<'a> Cpu<'a> {
     }
 }
 
-pub fn update(memory: &mut Memory, clock: &mut Clock, registers: &mut Registers) -> u32 {
-    let mut cpu = Cpu::new(memory, clock, registers);
-    if !cpu.clock.is_halted {
+pub fn update(memory: &mut Memory, timers: &mut Timers, registers: &mut Registers) -> u32 {
+    let mut cpu = Cpu::new(memory, timers, registers);
+    if !cpu.timers.is_halted {
         let opcode = cpu.memory.get_next_8();
         return cpu.execute_opcode(opcode, false) * 4;
     }

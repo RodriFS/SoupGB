@@ -1,26 +1,26 @@
-use super::clock::Clock;
 use super::memory::Memory;
+use super::timers::Timers;
 use super::utils::{clear_bit_at, get_bit_at, set_bit_at};
 
 pub struct Interrupts<'a> {
-    clock: &'a mut Clock,
+    timers: &'a mut Timers,
     memory: &'a mut Memory,
 }
 
 impl<'a> Interrupts<'a> {
-    pub fn new(clock: &'a mut Clock, memory: &'a mut Memory) -> Self {
-        Self { clock, memory }
+    pub fn new(timers: &'a mut Timers, memory: &'a mut Memory) -> Self {
+        Self { timers, memory }
     }
 
     pub fn request_interrupt(&mut self, bit: u8) {
         let interrupt_flags = self.memory.read(0xff0f);
         let modified_flag = set_bit_at(interrupt_flags, bit);
         self.memory.write(0xff0f, modified_flag);
-        self.clock.is_halted = false;
+        self.timers.is_halted = false;
     }
 
     fn interrupt_execution(&mut self, request: u8, interrupt: u8) {
-        self.clock.master_enabled = false;
+        self.timers.master_enabled = false;
         let clear_request = clear_bit_at(request, interrupt);
         self.memory.write(0xff0f, clear_request);
 
@@ -38,9 +38,9 @@ impl<'a> Interrupts<'a> {
     }
 }
 
-pub fn update(clock: &mut Clock, memory: &mut Memory) {
-    let mut interrupts = Interrupts::new(clock, memory);
-    if interrupts.clock.master_enabled {
+pub fn update(timers: &mut Timers, memory: &mut Memory) {
+    let mut interrupts = Interrupts::new(timers, memory);
+    if interrupts.timers.master_enabled {
         let request = interrupts.memory.read(0xff0f);
         let interrupt_enable = interrupts.memory.read(0xffff);
         if request > 0 {

@@ -1,7 +1,15 @@
 use super::constants::*;
-use super::utils::get_bit_at;
+use super::utils::{clear_bit_at, get_bit_at, set_bit_at};
 use byteorder::{BigEndian, ByteOrder};
 use std::io::Write;
+
+#[derive(PartialEq)]
+pub enum LcdMode {
+    HBlank,
+    VBlank,
+    ReadingOAMRAM,
+    TransfToLCDDriver,
+}
 
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone)]
@@ -282,8 +290,17 @@ impl Memory {
         self.read(TIMER_CONTROL_ADDRESS)
     }
     pub fn get_is_clock_enabled(&self) -> bool {
-        let clock = self.get_tac();
-        clock >> 2 == 1
+        let timers = self.get_tac();
+        timers >> 2 == 1
+    }
+
+    pub fn update_div(&mut self) {
+        let divider_register = self.get_div();
+        if divider_register == 0xff {
+            self.set_div(0x0);
+        } else {
+            self.set_div(divider_register + 1);
+        }
     }
 
     pub fn get_clock_frequency(&self) -> u8 {
@@ -298,6 +315,74 @@ impl Memory {
             3 => self.input_clock_select = 256,  // freq 16382
             _ => panic!("Frequency not supported"),
         }
+    }
+
+    pub fn increment_scanline(&mut self) -> u8 {
+        let mut scan_line = self.read(0xff44);
+        scan_line = scan_line.wrapping_add(1);
+        self.write_scanline(scan_line);
+        scan_line
+    }
+
+    pub fn is_lcd_enabled(&self) -> bool {
+        get_bit_at(self.read(0xff40), 7)
+    }
+
+    pub fn get_lcd_status(&self) -> LcdMode {
+        let lcd_status = self.read(0xff41);
+        match lcd_status & 0x3 {
+            0x0 => LcdMode::HBlank,
+            0x1 => LcdMode::VBlank,
+            0x2 => LcdMode::ReadingOAMRAM,
+            0x3 => LcdMode::TransfToLCDDriver,
+            _ => panic!("Unreachable lcd status"),
+        }
+    }
+
+    pub fn set_lcd_status(&mut self, status: LcdMode) {
+        let lcd_status = self.read(0xff41);
+        let new_status = match status {
+            LcdMode::HBlank => {
+                let temp_status = clear_bit_at(lcd_status, 1);
+                clear_bit_at(temp_status, 0)
+            }
+            LcdMode::VBlank => {
+                let temp_status = clear_bit_at(lcd_status, 1);
+                set_bit_at(temp_status, 0)
+            }
+            LcdMode::ReadingOAMRAM => {
+                let temp_status = set_bit_at(lcd_status, 1);
+                clear_bit_at(temp_status, 0)
+            }
+            LcdMode::TransfToLCDDriver => {
+                let temp_status = set_bit_at(lcd_status, 1);
+                set_bit_at(temp_status, 0)
+            }
+        };
+        self.write(0xff41, new_status);
+    }
+
+    pub fn is_interrupt_requested(&self, bit: u8) -> bool {
+        let lcd_status = self.read(0xff41);
+        get_bit_at(lcd_status, bit)
+    }
+
+    pub fn set_coincidence_flag(&mut self) {
+        let lcd_status = self.read(0xff41);
+        self.write(0xff41, set_bit_at(lcd_status, 2));
+    }
+
+    pub fn clear_coincidence_flag(&mut self) {
+        let lcd_status = self.read(0xff41);
+        self.write(0xff41, clear_bit_at(lcd_status, 2));
+    }
+
+    pub fn get_ly(&self) -> u8 {
+        self.read(0xff44)
+    }
+
+    pub fn get_lyc(&self) -> u8 {
+        self.read(0xff45)
     }
 
     pub fn write(&mut self, address: u16, data: u8) {

@@ -342,7 +342,7 @@ pub fn print_debug_memory_info(memory: &Memory) {
         let tma = memory.get_tma();
         let tac = memory.get_tac();
         println!("TIMERS: -----------------------------");
-        println!("Clock frequency: {}", cf);
+        println!("Timers frequency: {}", cf);
         println!("Timer enabled: {}", te);
         println!("0xff04 (DIV) Divider counter: {:02X}", dr);
         println!("0xff05 (TIMA) Timer counter: {:02X}", tima);
