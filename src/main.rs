@@ -1,58 +1,50 @@
 use gba::constants::*;
-use gba::cpu;
-use gba::debugger;
-use gba::debugger::steps;
-use gba::gpu;
-use gba::interrupts;
-use gba::memory::Memory;
-use gba::registers::Registers;
-use gba::timers;
-use gba::timers::Timers;
+use gba::emulator::Emulator;
+use minifb::{Key, Scale, Window, WindowOptions};
 use std::fs::File;
 use std::io::Read;
+use std::sync::mpsc;
+use std::thread;
 
-struct Emulator {
-    registers: Registers,
-    memory: Memory,
-    timers: Timers,
-}
-
-impl Emulator {
-    fn new() -> Self {
-        Self {
-            registers: Registers::default(),
-            memory: Memory::default(),
-            timers: Timers::default(),
-        }
-    }
-}
-
-fn main() {
-    let mut emulator = Emulator::new();
+pub fn main() {
+    let mut emulator = Emulator::default();
     let mut args: Vec<String> = std::env::args().collect();
-    let mut rom = File::open(args.pop().unwrap()).unwrap();
+    let file_path = args.pop().unwrap();
+    let mut rom = File::open(file_path.clone()).unwrap();
     let mut buffer = Vec::new();
     rom.read_to_end(&mut buffer).unwrap();
-    emulator.memory.load_rom(buffer);
+    emulator.load_rom(buffer);
 
-    let refresh = std::time::Duration::from_secs_f64(1.0 / FPS as f64);
+    let (to_emu, from_window) = mpsc::channel();
+    let (to_window, from_emu) = mpsc::channel();
+    let handle = thread::spawn(move || emulator.run(to_window, from_window));
 
-    loop {
-        let mut frame_cycles = 0;
-        while frame_cycles < MAXCYCLES {
-            debugger::print_debug_registers_info(&emulator.registers);
-            debugger::print_debug_memory_info(&emulator.memory);
-            let opcode_cycles = cpu::update(
-                &mut emulator.memory,
-                &mut emulator.timers,
-                &mut emulator.registers,
-            );
-            frame_cycles += opcode_cycles;
-            timers::update(&mut emulator.timers, &mut emulator.memory, opcode_cycles);
-            gpu::update(&mut emulator.timers, &mut emulator.memory, opcode_cycles);
-            interrupts::update(&mut emulator.timers, &mut emulator.memory);
-            steps();
+    let windows_options = WindowOptions {
+        scale: Scale::X2,
+        ..WindowOptions::default()
+    };
+
+    let mut window = Window::new(&file_path, SCREEN_WIDTH, SCREEN_HEIGHT, windows_options)
+        .unwrap_or_else(|e| {
+            panic!("{}", e);
+        });
+
+    // Limit to max ~60 fps update rate
+    window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
+    while window.is_open() && !window.is_key_down(Key::Escape) {
+        match from_emu.recv() {
+            Ok(buffer) => match window.update_with_buffer(&buffer, SCREEN_WIDTH, SCREEN_HEIGHT) {
+                Ok(_) => {}
+                Err(e) => {
+                    println!("{}", e);
+                    std::process::exit(0);
+                }
+            },
+            Err(_) => {
+                to_emu.send("close").unwrap();
+            }
         }
-        std::thread::sleep(refresh);
     }
+    to_emu.send("close").unwrap();
+    handle.join().unwrap();
 }

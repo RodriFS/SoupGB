@@ -3,6 +3,11 @@ use super::utils::{clear_bit_at, get_bit_at, set_bit_at};
 use byteorder::{BigEndian, ByteOrder};
 use std::io::Write;
 
+pub struct Point2D {
+    pub x: u8,
+    pub y: u8,
+}
+
 #[derive(PartialEq)]
 pub enum LcdMode {
     HBlank,
@@ -37,8 +42,10 @@ pub struct Memory {
     stack_pointer: u16,
     program_counter: u16,
     pub input_clock_select: u32,
+    pub video_buffer: Vec<u32>,
 }
 
+// General Initialization functions
 impl Memory {
     pub fn default() -> Self {
         let mut internal_memory = [0; 0x10000];
@@ -75,9 +82,13 @@ impl Memory {
             stack_pointer: 0xfffe,
             program_counter: 0x100,
             input_clock_select: 1024,
+            video_buffer: vec![0; SCREEN_HEIGHT * SCREEN_WIDTH],
         }
     }
+}
 
+// General CPU functions
+impl Memory {
     pub fn get_next_8(&mut self) -> u8 {
         let data = self.read(self.get_program_counter());
         self.increment_program_counter(1);
@@ -197,7 +208,10 @@ impl Memory {
     pub fn write_scanline(&mut self, data: u8) {
         self.set_rom(0xff44, data);
     }
+}
 
+// General Timer functions
+impl Memory {
     pub fn get_div(&self) -> u8 {
         self.read(DIVIDER_COUNTER_ADDRESS)
     }
@@ -243,16 +257,77 @@ impl Memory {
             _ => panic!("Frequency not supported"),
         }
     }
+}
 
-    pub fn increment_scanline(&mut self) -> u8 {
-        let mut scan_line = self.read(0xff44);
-        scan_line = scan_line.wrapping_add(1);
-        self.write_scanline(scan_line);
-        scan_line
+// General Gpu functions
+impl Memory {
+    pub fn background_position(&self) -> Point2D {
+        let (x, y) = if self.background_enabled() {
+            (self.read(0xff43), self.read(0xff42))
+        } else {
+            (0, 0)
+        };
+        Point2D { x, y }
+    }
+
+    pub fn window_position(&self) -> Point2D {
+        Point2D {
+            x: self.read(0xff40) - 7,
+            y: self.read(0xff4a),
+        }
     }
 
     pub fn is_lcd_enabled(&self) -> bool {
         get_bit_at(self.read(0xff40), 7)
+    }
+
+    pub fn window_map_select(&self) -> u16 {
+        if get_bit_at(self.read(0xff40), 6) {
+            return 0x9c00;
+        }
+        0x9800
+    }
+
+    pub fn window_enabled(&self) -> bool {
+        get_bit_at(self.read(0xff40), 5)
+    }
+
+    pub fn tile_data_select(&self) -> u16 {
+        if get_bit_at(self.read(0xff40), 4) {
+            return 0x8000;
+        }
+        0x8800
+    }
+
+    pub fn background_map_select(&self) -> u16 {
+        if get_bit_at(self.read(0xff40), 3) {
+            return 0x9c00;
+        }
+        0x9800
+    }
+
+    pub fn sprite_size(&self) -> bool {
+        get_bit_at(self.read(0xff40), 2)
+    }
+
+    pub fn sprite_enabled(&self) -> bool {
+        get_bit_at(self.read(0xff40), 1)
+    }
+
+    pub fn background_enabled(&self) -> bool {
+        get_bit_at(self.read(0xff40), 0)
+    }
+
+    pub fn background_palette(&self) -> u8 {
+        self.read(0xff47)
+    }
+
+    pub fn sprite_palette1(&self) -> u8 {
+        self.read(0xff48)
+    }
+
+    pub fn sprite_palette2(&self) -> u8 {
+        self.read(0xff49)
     }
 
     pub fn get_lcd_status(&self) -> LcdMode {
@@ -289,6 +364,42 @@ impl Memory {
         self.write(0xff41, new_status);
     }
 
+    pub fn set_coincidence_flag(&mut self) {
+        let lcd_status = self.read(0xff41);
+        self.write(0xff41, set_bit_at(lcd_status, 2));
+    }
+
+    pub fn clear_coincidence_flag(&mut self) {
+        let lcd_status = self.read(0xff41);
+        self.write(0xff41, clear_bit_at(lcd_status, 2));
+    }
+
+    pub fn increment_scanline(&mut self) -> u8 {
+        let mut scan_line = self.read(0xff44);
+        scan_line = scan_line.wrapping_add(1);
+        self.write_scanline(scan_line);
+        scan_line
+    }
+
+    pub fn get_ly(&self) -> u8 {
+        self.read(0xff44)
+    }
+
+    pub fn get_lyc(&self) -> u8 {
+        self.read(0xff45)
+    }
+
+    fn dma_transfer(&mut self, data: u8) {
+        let address = (data as u16) << 8;
+        println!("dma transfer {:x}", address);
+        for i in 0..0xA0 {
+            self.write(0xfe00 + i, self.read(address + i));
+        }
+    }
+}
+
+// General Interrupts functions
+impl Memory {
     pub fn is_interrupt_requested(&self, bit: u8) -> bool {
         let lcd_status = self.read(0xff41);
         get_bit_at(lcd_status, bit)
@@ -307,25 +418,10 @@ impl Memory {
         };
         self.set_program_counter(pc);
     }
+}
 
-    pub fn set_coincidence_flag(&mut self) {
-        let lcd_status = self.read(0xff41);
-        self.write(0xff41, set_bit_at(lcd_status, 2));
-    }
-
-    pub fn clear_coincidence_flag(&mut self) {
-        let lcd_status = self.read(0xff41);
-        self.write(0xff41, clear_bit_at(lcd_status, 2));
-    }
-
-    pub fn get_ly(&self) -> u8 {
-        self.read(0xff44)
-    }
-
-    pub fn get_lyc(&self) -> u8 {
-        self.read(0xff45)
-    }
-
+// Memory Read/Write functions
+impl Memory {
     pub fn read(&self, address: u16) -> u8 {
         match address {
             0x4000..=0x7FFF => {
@@ -421,6 +517,7 @@ impl Memory {
                 self.set_rom(address, data)
             }
             0xff44 => self.set_rom(address, 0),
+            0xff46 => self.dma_transfer(data),
             _ => self.set_rom(address, data),
         }
     }
