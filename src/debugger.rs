@@ -315,8 +315,8 @@ pub fn print_debug_memory_info(memory: &Memory) {
         print_instruction(opcode, n16.swap_bytes());
     }
     if DEBUG_MEMORY {
-        let cromb = memory.current_rom_bank;
-        let cramb = memory.current_ram_bank;
+        let cromb = memory.memory_bank;
+        let cramb = memory.get_bank2_as_low();
         let mbt = memory.memory_bank_type.clone();
         let ire = memory.is_ram_enabled;
         let bm = memory.banking_mode.clone();

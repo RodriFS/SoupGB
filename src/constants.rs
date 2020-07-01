@@ -15,8 +15,8 @@ pub const DEBUG_TIMERS: bool = false;
 pub const STEPS: bool = false;
 pub const COMPARE: bool = false;
 
-pub const SCREEN_WIDTH: usize = 256;
-pub const SCREEN_HEIGHT: usize = 256;
+pub const SCREEN_WIDTH: usize = 160;
+pub const SCREEN_HEIGHT: usize = 144;
 
 // Timings for main opcodes
 pub const OP_TIMES: [u8; 0x100] = [

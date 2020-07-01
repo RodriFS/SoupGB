@@ -24,7 +24,7 @@ pub enum MBC {
     MBC2,
 }
 
-#[derive(Debug, Clone)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Bmode {
     RAM,
     ROM,
@@ -32,11 +32,19 @@ pub enum Bmode {
 
 pub struct Memory {
     pub cartridge_memory: Vec<u8>,
-    pub internal_memory: [u8; 0x10000],
-    pub ram_memory: [u8; 0x8000],
-    pub current_rom_bank: u8,
-    pub current_ram_bank: u8,
+    wram: [u8; 0x2000],
+    vram: [u8; 0x2000],
+    ram: [u8; 0x8000],
+    echo: [u8; 0x1e00],
+    oam: [u8; 0xa0],
+    io_ports: [u8; 0x80],
+    hram: [u8; 0x80],
+    ie_register: u8,
+    pub memory_bank: u8,
+    pub wram_bank: u8,
     pub memory_bank_type: MBC,
+    rom_size: u8,
+    ram_size: u8,
     pub is_ram_enabled: bool,
     pub banking_mode: Bmode,
     stack_pointer: u16,
@@ -48,35 +56,43 @@ pub struct Memory {
 // General Initialization functions
 impl Memory {
     pub fn default() -> Self {
-        let mut internal_memory = [0; 0x10000];
-        internal_memory[0xFF10] = 0x80;
-        internal_memory[0xFF11] = 0xBF;
-        internal_memory[0xFF12] = 0xF3;
-        internal_memory[0xFF14] = 0xBF;
-        internal_memory[0xFF16] = 0x3F;
-        internal_memory[0xFF19] = 0xBF;
-        internal_memory[0xFF1A] = 0x7F;
-        internal_memory[0xFF1B] = 0xFF;
-        internal_memory[0xFF1C] = 0x9F;
-        internal_memory[0xFF1E] = 0xBF;
-        internal_memory[0xFF20] = 0xFF;
-        internal_memory[0xFF23] = 0xBF;
-        internal_memory[0xFF24] = 0x77;
-        internal_memory[0xFF25] = 0xF3;
-        internal_memory[0xFF26] = 0xF1;
-        internal_memory[0xFF40] = 0x91;
-        internal_memory[0xFF47] = 0xFC;
-        internal_memory[0xFF48] = 0xFF;
-        internal_memory[0xFF49] = 0xFF;
+        let mut io_ports = [0; 0x80];
+        io_ports[0x10] = 0x80;
+        io_ports[0x11] = 0xBF;
+        io_ports[0x12] = 0xF3;
+        io_ports[0x14] = 0xBF;
+        io_ports[0x16] = 0x3F;
+        io_ports[0x19] = 0xBF;
+        io_ports[0x1A] = 0x7F;
+        io_ports[0x1B] = 0xFF;
+        io_ports[0x1C] = 0x9F;
+        io_ports[0x1E] = 0xBF;
+        io_ports[0x20] = 0xFF;
+        io_ports[0x23] = 0xBF;
+        io_ports[0x24] = 0x77;
+        io_ports[0x25] = 0xF3;
+        io_ports[0x26] = 0xF1;
+        io_ports[0x40] = 0x91;
+        io_ports[0x47] = 0xFC;
+        io_ports[0x48] = 0xFF;
+        io_ports[0x49] = 0xFF;
+        io_ports[0x41] = 0x84;
 
-        internal_memory[0xFF41] = 0x84;
         Self {
+            wram: [0; 0x2000],
+            vram: [0; 0x2000],
+            ram: [0; 0x8000],
+            echo: [0; 0x1e00],
+            oam: [0; 0xa0],
+            hram: [0; 0x80],
+            ie_register: 0,
             memory_bank_type: MBC::ROM_ONLY,
-            current_rom_bank: 1,
+            memory_bank: 1,
+            rom_size: 0,
+            ram_size: 0,
             cartridge_memory: Vec::new(),
-            internal_memory,
-            ram_memory: [0; 0x8000],
-            current_ram_bank: 0,
+            wram_bank: 1,
+            io_ports,
             is_ram_enabled: false,
             banking_mode: Bmode::ROM,
             stack_pointer: 0xfffe,
@@ -95,10 +111,9 @@ impl Memory {
         data
     }
     pub fn get_next_16(&mut self) -> u16 {
-        let c = self.get_program_counter() as usize;
+        let c = self.get_program_counter();
         self.increment_program_counter(2);
-        let address = self.read_range(c..(c + 2));
-        BigEndian::read_u16(&[address[0], address[1]]).swap_bytes()
+        BigEndian::read_u16(&[self.read(c + 1), self.read(c)])
     }
 
     pub fn get_next_8_debug(&self) -> u8 {
@@ -112,9 +127,8 @@ impl Memory {
     }
 
     pub fn get_next_16_debug(&self) -> u16 {
-        let c = self.get_program_counter() as usize;
-        let address = self.read_range((c + 1)..(c + 3));
-        BigEndian::read_u16(&[address[0], address[1]])
+        let c = self.get_program_counter();
+        BigEndian::read_u16(&[self.read(c + 1), self.read(c)])
     }
 
     pub fn read_memory_at_current_location(&self) -> u8 {
@@ -122,12 +136,22 @@ impl Memory {
     }
 
     pub fn load_rom(&mut self, cartridge_memory: Vec<u8>) {
-        self.internal_memory[0x0000..0x7FFF].clone_from_slice(&cartridge_memory[0x0000..0x7FFF]);
         self.memory_bank_type = match cartridge_memory[0x147] {
             1 | 2 | 3 => MBC::MBC1,
             5 | 6 => MBC::MBC2,
             _ => MBC::ROM_ONLY,
         };
+        self.rom_size = (cartridge_memory[0x148] << 4) + 32;
+        self.ram_size = match cartridge_memory[0x149] {
+            0 => 0,
+            1 => 2,
+            2 => 8,
+            3 => 32,
+            _ => panic!("Unsupported ram size"),
+        };
+        if let Some(value) = cartridge_memory.get(0xff70) {
+            self.wram_bank = *value;
+        }
         self.cartridge_memory = cartridge_memory;
     }
 
@@ -135,28 +159,8 @@ impl Memory {
         self.is_ram_enabled = value;
     }
 
-    fn set_rom_bank(&mut self, bank: u8) {
-        self.current_rom_bank = bank
-    }
-
-    fn set_ram_bank(&mut self, bank: u8) {
-        self.current_ram_bank = bank;
-    }
-
     fn set_banking_mode(&mut self, mode: Bmode) {
         self.banking_mode = mode;
-    }
-
-    fn set_ram(&mut self, address: u16, data: u8) {
-        self.ram_memory[address as usize] = data;
-    }
-
-    pub fn set_rom(&mut self, address: u16, data: u8) {
-        self.internal_memory[address as usize] = data;
-    }
-
-    pub fn read_range(&self, range: std::ops::Range<usize>) -> &[u8] {
-        self.internal_memory.get(range).unwrap()
     }
 
     pub fn push_to_stack(&mut self, data: u16) {
@@ -206,7 +210,7 @@ impl Memory {
     }
 
     pub fn write_scanline(&mut self, data: u8) {
-        self.set_rom(0xff44, data);
+        self.io_ports[0x44] = data;
     }
 }
 
@@ -216,7 +220,7 @@ impl Memory {
         self.read(DIVIDER_COUNTER_ADDRESS)
     }
     pub fn set_div(&mut self, data: u8) {
-        self.set_rom(DIVIDER_COUNTER_ADDRESS, data);
+        self.io_ports[DIVIDER_COUNTER_ADDRESS as usize - 0xff00] = data;
     }
     pub fn get_tima(&self) -> u8 {
         self.read(TIMER_COUNTER_ADDRESS)
@@ -391,7 +395,6 @@ impl Memory {
 
     fn dma_transfer(&mut self, data: u8) {
         let address = (data as u16) << 8;
-        println!("dma transfer {:x}", address);
         for i in 0..0xA0 {
             self.write(0xfe00 + i, self.read(address + i));
         }
@@ -422,23 +425,126 @@ impl Memory {
 
 // Memory Read/Write functions
 impl Memory {
+    pub fn get_bank2_as_low(&self) -> u8 {
+        (self.memory_bank & 0b0110_0000) >> 5
+    }
+
+    pub fn get_bank2_as_high(&self) -> u8 {
+        self.memory_bank & 0b0110_0000
+    }
+
+    fn set_bank1(&mut self, data: u8) {
+        let lower_bits = data & 0b0001_1111;
+        let upper_bits = self.memory_bank & 0b0110_0000;
+        let rom_bank = lower_bits | upper_bits;
+        if lower_bits == 0 {
+            self.memory_bank = rom_bank + 1;
+        } else {
+            self.memory_bank = rom_bank;
+        }
+    }
+
+    fn set_bank2(&mut self, data: u8) {
+        let lower_bits = self.memory_bank & 0b0001_1111;
+        let upper_bits = (data & 0b0000_0011) << 5;
+        let next_rom_bank = upper_bits | lower_bits;
+        self.memory_bank = next_rom_bank;
+    }
+
+    fn write_io_ports(&mut self, address: u16, data: u8) {
+        self.io_ports[address as usize - 0xff00] = data;
+    }
+
+    fn read_io_ports(&self, address: u16) -> u8 {
+        self.io_ports[address as usize - 0xff00]
+    }
+
+    fn read_rom(&self, address: u16, bank: u8) -> u8 {
+        let mut rom_address = address;
+        if address > 0x3fff {
+            rom_address -= 0x4000;
+        }
+        self.cartridge_memory
+            .get((rom_address as u32 + (bank as u32 * 0x4000)) as usize)
+            .unwrap_or(&0x0)
+            .to_owned()
+    }
+
+    fn read_vram(&self, address: u16) -> u8 {
+        let vram_address = address - 0x8000;
+        self.vram[vram_address as usize]
+    }
+
+    fn read_echo(&self, address: u16) -> u8 {
+        let echo_address = address - 0xe000;
+        self.echo[echo_address as usize]
+    }
+
+    fn write_vram(&mut self, address: u16, data: u8) {
+        let vram_address = address - 0x8000;
+        self.vram[vram_address as usize] = data;
+    }
+
+    fn read_ram(&self, address: u16, bank: u8) -> u8 {
+        let ram_address = address - 0xA000;
+        self.ram[(ram_address + (bank as u16 * 0x2000)) as usize]
+    }
+
+    fn write_ram(&mut self, address: u16, bank: u8, data: u8) {
+        let bank_address = address - 0xa000;
+        self.ram[(bank_address + (bank as u16 * 0x2000)) as usize] = data;
+    }
+
+    fn read_wram(&self, address: u16) -> u8 {
+        let bank_address = address - 0xc000;
+        self.wram[bank_address as usize]
+    }
+
+    fn write_wram(&mut self, address: u16, data: u8) {
+        let bank_address = address - 0xc000;
+        self.wram[bank_address as usize] = data;
+        if address >= 0xC000 && address <= 0xDDFF {
+            self.echo[bank_address as usize] = data;
+        }
+    }
+
+    fn read_oam(&self, address: u16) -> u8 {
+        self.oam[(address - 0xFE00) as usize]
+    }
+
+    fn write_oam(&mut self, address: u16, data: u8) {
+        self.oam[(address - 0xFE00) as usize] = data;
+    }
+
+    fn read_hram(&self, address: u16) -> u8 {
+        self.hram[(address - 0xff80) as usize]
+    }
+
+    fn write_hram(&mut self, address: u16, data: u8) {
+        self.hram[(address - 0xff80) as usize] = data;
+    }
+
     pub fn read(&self, address: u16) -> u8 {
         match address {
-            0x4000..=0x7FFF => {
-                let mb_address = address - 0x4000;
-                self.cartridge_memory
-                    .get((mb_address as u32 + ((self.current_rom_bank) as u32 * 0x4000)) as usize)
-                    .unwrap_or(&0x0)
-                    .to_owned()
+            0x0000..=0x3fff if self.banking_mode == Bmode::ROM => self.read_rom(address, 0),
+            0x0000..=0x3fff if self.banking_mode == Bmode::RAM => {
+                self.read_rom(address, self.get_bank2_as_high())
             }
-            0xA000..=0xBFFF => {
-                if !self.is_ram_enabled {
-                    return 0xff;
-                }
-                let ram_address = address - 0xA000;
-                self.ram_memory[(ram_address + (self.current_ram_bank as u16 * 0x2000)) as usize]
+            0x4000..=0x7fff => self.read_rom(address, self.memory_bank),
+            0x8000..=0x9fff => self.read_vram(address),
+            0xa000..=0xbfff if !self.is_ram_enabled => 0xff,
+            0xa000..=0xbfff if self.banking_mode == Bmode::ROM => self.read_ram(address, 0),
+            0xa000..=0xbfff if self.banking_mode == Bmode::RAM => {
+                self.read_ram(address, self.get_bank2_as_low())
             }
-            _ => self.internal_memory[address as usize],
+            0xc000..=0xdfff => self.read_wram(address),
+            0xe000..=0xfdff => self.read_echo(address),
+            0xfe00..=0xfe9f => self.read_oam(address),
+            0xfea0..=0xfeff => 0,
+            0xff00..=0xff7f => self.read_io_ports(address),
+            0xff80..=0xfffe => self.read_hram(address),
+            0xffff => self.ie_register,
+            _ => panic!("Unsupported memory address read: {:04X}", address),
         }
     }
     pub fn handle_bank_type(&mut self, address: u16, data: u8) {
@@ -451,39 +557,11 @@ impl Memory {
                 0b1010 => self.set_is_ram_enabled(true),
                 _ => self.set_is_ram_enabled(false),
             },
-            MBC::MBC1 if (address >= 0x2000) && (address <= 0x3fff) => {
-                let test = data & 0b0001_1111;
-                let rom_bank = test | (self.current_rom_bank & 0b0110_0000);
-                if test == 0 {
-                    self.set_rom_bank(rom_bank + 1);
-                } else {
-                    self.set_rom_bank(rom_bank);
-                }
-            }
-            MBC::MBC2 if (address >= 0x2000) && (address <= 0x3fff) => {
-                let lower_bits = data & 0xf;
-                if lower_bits == 0 {
-                    self.set_rom_bank(1);
-                } else {
-                    self.set_rom_bank(lower_bits);
-                }
-            }
-            MBC::MBC1 if (address >= 0x4000) && (address <= 0x5fff) => match self.banking_mode {
-                Bmode::ROM => {
-                    let lower_bits = self.current_rom_bank & 0b0001_1111;
-                    let upper_bits = data & 0b0110_0000;
-                    let next_rom_bank = upper_bits | lower_bits;
-                    self.set_rom_bank(next_rom_bank);
-                }
-                Bmode::RAM => {
-                    self.set_ram_bank((data >> 5) & 0b0000_0011);
-                }
-            },
-            MBC::MBC1 if (address >= 0x6000) && (address <= 0x7FFF) => match data & 0x1 {
-                0x0 => {
-                    self.set_banking_mode(Bmode::ROM);
-                    self.set_rom_bank(0);
-                }
+            MBC::MBC1 if (address >= 0x2000) && (address <= 0x3fff) => self.set_bank1(data),
+            MBC::MBC2 if (address >= 0x2000) && (address <= 0x3fff) => self.set_bank1(data),
+            MBC::MBC1 if (address >= 0x4000) && (address <= 0x5fff) => self.set_bank2(data),
+            MBC::MBC1 if (address >= 0x6000) && (address <= 0x7FFF) => match data & 0b1 {
+                0x0 => self.set_banking_mode(Bmode::ROM),
                 0x1 => self.set_banking_mode(Bmode::RAM),
                 _ => panic!("Unsupported banking mode"),
             },
@@ -493,32 +571,33 @@ impl Memory {
     pub fn write(&mut self, address: u16, data: u8) {
         match address {
             0x0000..=0x7fff => self.handle_bank_type(address, data),
+            0x8000..=0x9FFF => self.write_vram(address, data),
             0xa000..=0xbfff if self.is_ram_enabled => {
-                let bank_address = address - 0xa000;
-                self.set_ram(bank_address + self.current_ram_bank as u16 * 0x2000, data);
+                self.write_ram(address, self.get_bank2_as_low(), data)
             }
             0xa000..=0xbfff => {}
-            0xe000..=0xfdff => {
-                self.set_rom(address, data);
-                self.write(address - 0x2000, data);
-            }
-            0xfea0..=0xfefe => {}
+            0xc000..=0xdfff => self.write_wram(address, data),
+            0xe000..=0xfdff => {}
+            0xfe00..=0xfe9f => self.write_oam(address, data),
+            0xfea0..=0xfeff => {}
             0xff01 => {
-                self.set_rom(address, data);
-                self.set_rom(0xff02, 0x81);
-                let c = self.internal_memory[0xff01] as char;
+                self.write_io_ports(address, data);
+                self.write_io_ports(0xff02, 0x81);
+                let c = self.read_io_ports(0xff01) as char;
                 let mut out = std::io::stdout();
                 print!("{}", c);
                 let _ = out.flush();
             }
-            0xff04 => self.set_rom(0xff04, 0),
+            0xff04 => self.write_io_ports(0xff04, 0),
             0xff07 => {
                 self.set_clock_frequency(data & 0x3);
-                self.set_rom(address, data)
+                self.write_io_ports(address, data)
             }
-            0xff44 => self.set_rom(address, 0),
+            0xff44 => self.write_io_ports(address, 0),
             0xff46 => self.dma_transfer(data),
-            _ => self.set_rom(address, data),
+            0xff00..=0xff7f => self.write_io_ports(address, data),
+            0xff80..=0xfffe => self.write_hram(address, data),
+            0xffff => self.ie_register = data,
         }
     }
 }

@@ -99,7 +99,7 @@ fn render_background(provider: &Sender<Vec<u32>>, memory: &mut Memory) {
     let current_line = memory.get_ly();
     let mut buffer = Vec::with_capacity(SCREEN_WIDTH);
     let visible_tiles = SCREEN_WIDTH as u16 / 8;
-    let from = bg_tilemap_region + (current_line as u16 / 8) * visible_tiles;
+    let from = bg_tilemap_region + (current_line as u16 / 8) * 32;
     for bg_mem in from..(from + visible_tiles) {
         let address = memory.read(bg_mem);
         let tile_id = match tile_data_region {
@@ -113,10 +113,13 @@ fn render_background(provider: &Sender<Vec<u32>>, memory: &mut Memory) {
         into_pixels(&mut buffer, data1, data2, palette);
     }
     for (i, pixel) in buffer.into_iter().enumerate() {
-        let h_pos = (sx).wrapping_add(i as u8) as u16;
-        let v_pos = (256 - sy as u16).wrapping_mul(256);
-        let line = (current_line as u16).wrapping_mul(256 as u16);
-        let pos = h_pos.wrapping_add(v_pos).wrapping_add(line) as usize;
+        let base = current_line as u16 * SCREEN_WIDTH as u16;
+        let px = sx.wrapping_add(i as u8) as u16;
+        let py = (256 as u16 - sy as u16).wrapping_mul(SCREEN_WIDTH as u16);
+        let mut pos = base.wrapping_add(px).wrapping_add(py) as usize;
+        if pos >= 256 * SCREEN_WIDTH {
+            pos -= 256 * SCREEN_WIDTH;
+        }
         if pos < memory.video_buffer.len() {
             memory.video_buffer[pos] = pixel;
         }
@@ -162,7 +165,10 @@ pub fn update(
                 memory.write_scanline(0);
                 return;
             }
-            _ => panic!("Unreachable, scanline can't be greater than 153"),
+            _ => panic!(
+                "Unreachable, scanline can't be greater than 153: {}",
+                scan_line
+            ),
         }
         memory.increment_scanline();
     }
