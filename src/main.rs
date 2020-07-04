@@ -29,17 +29,24 @@ pub fn main() {
             panic!("{}", e);
         });
 
-    // Limit to max ~60 fps update rate
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
+    let buf_len = SCREEN_WIDTH * SCREEN_HEIGHT;
+    let mut video_buffer = Vec::with_capacity(buf_len);
     while window.is_open() && !window.is_key_down(Key::Escape) {
         match from_emu.recv() {
-            Ok(buffer) => match window.update_with_buffer(&buffer, SCREEN_WIDTH, SCREEN_HEIGHT) {
-                Ok(_) => {}
-                Err(e) => {
-                    println!("{}", e);
-                    std::process::exit(0);
+            Ok(line) => {
+                video_buffer.extend(line);
+                if video_buffer.len() == buf_len + SCREEN_WIDTH {
+                    match window.update_with_buffer(&video_buffer, SCREEN_WIDTH, SCREEN_HEIGHT) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            println!("{}", e);
+                            std::process::exit(0);
+                        }
+                    }
+                    video_buffer.clear();
                 }
-            },
+            }
             Err(_) => {
                 to_emu.send("close").unwrap();
             }

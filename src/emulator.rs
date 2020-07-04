@@ -31,6 +31,7 @@ impl Emulator {
 
   pub fn run(&mut self, provider: Sender<Vec<u32>>, receiver: Receiver<&str>) {
     let refresh = std::time::Duration::from_secs_f64(1.0 / FPS as f64);
+    let mut relative_time = std::time::SystemTime::now();
     loop {
       let mut frame_cycles = 0;
       while frame_cycles < MAXCYCLES {
@@ -43,14 +44,17 @@ impl Emulator {
         interrupts::update(&mut self.timers, &mut self.memory);
         steps();
 
-        //provider.send("hello!").unwrap();
         if let Ok(message) = receiver.try_recv() {
           if message == "close" {
             std::process::exit(0);
           }
         }
       }
-      std::thread::sleep(refresh);
+      let elapsed = relative_time.elapsed().unwrap();
+      if elapsed.as_secs_f32() < refresh.as_secs_f32() {
+        std::thread::sleep(refresh - elapsed);
+      }
+      relative_time = std::time::SystemTime::now();
     }
   }
 }

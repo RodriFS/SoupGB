@@ -30,7 +30,7 @@ impl<'a> Cpu<'a> {
     }
     //// INSTRUCTIONS
     fn ld_nn_n(&mut self, reg: Reg) -> bool {
-        let next_8 = self.memory.get_next_8();
+        let next_8 = self.memory.get_byte();
         let _ = match reg {
             Reg::B => self.registers.set_b(next_8),
             Reg::C => self.registers.set_c(next_8),
@@ -43,7 +43,7 @@ impl<'a> Cpu<'a> {
         true
     }
     fn ld_n_nn(&mut self, n: Reg) -> bool {
-        let data = self.memory.get_next_16();
+        let data = self.memory.get_word();
         match n {
             Reg::BC => self.registers.set_bc(data),
             Reg::DE => self.registers.set_de(data),
@@ -83,7 +83,7 @@ impl<'a> Cpu<'a> {
             Reg::BC => self.registers.get_bc(),
             Reg::DE => self.registers.get_de(),
             Reg::HL => self.registers.get_hl(),
-            Reg::N16 => self.memory.get_next_16(),
+            Reg::N16 => self.memory.get_word(),
             _ => panic!("Unsupported fn ld_a_n"),
         };
         let data = self.memory.read(address);
@@ -95,7 +95,7 @@ impl<'a> Cpu<'a> {
             Reg::BC => self.registers.get_bc(),
             Reg::DE => self.registers.get_de(),
             Reg::HL => self.registers.get_hl(),
-            Reg::N16 => self.memory.get_next_16(),
+            Reg::N16 => self.memory.get_word(),
             _ => panic!("Unsupported fn ld_n_a"),
         };
         let a = self.registers.get_a();
@@ -273,7 +273,7 @@ impl<'a> Cpu<'a> {
         true
     }
     fn jr_cc_n(&mut self, condition: bool) -> bool {
-        let address = self.memory.get_next_8() as i8;
+        let address = self.memory.get_byte() as i8;
         if condition {
             self.memory.set_program_counter(
                 self.memory
@@ -293,7 +293,7 @@ impl<'a> Cpu<'a> {
         false
     }
     fn jp_cc_nn(&mut self, condition: bool) -> bool {
-        let address = self.memory.get_next_16();
+        let address = self.memory.get_word();
         if condition {
             self.memory.set_program_counter(address);
             return true;
@@ -301,7 +301,7 @@ impl<'a> Cpu<'a> {
         false
     }
     fn call_cc_nn(&mut self, condition: bool) -> bool {
-        let address = self.memory.get_next_16();
+        let address = self.memory.get_word();
         if condition {
             let next_pc = self.memory.get_program_counter();
             self.memory.push_to_stack(next_pc);
@@ -325,7 +325,7 @@ impl<'a> Cpu<'a> {
         true
     }
     fn cb(&mut self) -> u32 {
-        let address = self.memory.get_next_8();
+        let address = self.memory.get_byte();
         self.execute_opcode(address, true)
     }
     fn rlc_n(&mut self, reg: Reg) -> bool {
@@ -868,9 +868,9 @@ impl<'a> Cpu<'a> {
                 r
             }
             0x08 => {
-                let address = self.memory.get_next_16();
+                let address = self.memory.get_word();
                 let stack_pointer = self.memory.get_stack_pointer();
-                self.memory.write_u16(address, stack_pointer);
+                self.memory.write_word(address, stack_pointer);
                 true
             }
             0x09 => self.add_hl_n(Reg::BC),
@@ -985,7 +985,7 @@ impl<'a> Cpu<'a> {
                 true
             }
             0x36 => {
-                let data = self.memory.get_next_8();
+                let data = self.memory.get_byte();
                 let hl = self.registers.get_hl();
                 self.memory.write(hl, data);
                 true
@@ -1015,7 +1015,7 @@ impl<'a> Cpu<'a> {
             0x3c => self.inc_n(Reg::A),
             0x3d => self.dec_n(Reg::A),
             0x3e => {
-                let n = self.memory.get_next_8();
+                let n = self.memory.get_byte();
                 self.ld_r1_r2(Reg::A, n)
             }
             0x3f => {
@@ -1298,7 +1298,7 @@ impl<'a> Cpu<'a> {
             }
             0xc5 => self.push_nn(Reg::BC),
             0xc6 => {
-                let n = self.memory.get_next_8();
+                let n = self.memory.get_byte();
                 self.add_a_n(n)
             }
             0xc7 => self.rst_n(0x0000),
@@ -1321,7 +1321,7 @@ impl<'a> Cpu<'a> {
             }
             0xcd => self.call_cc_nn(true),
             0xce => {
-                let n = self.memory.get_next_8();
+                let n = self.memory.get_byte();
                 self.addc_a_n(n)
             }
             0xcf => self.rst_n(0x0008),
@@ -1340,7 +1340,7 @@ impl<'a> Cpu<'a> {
             }
             0xd5 => self.push_nn(Reg::DE),
             0xd6 => {
-                let n = self.memory.get_next_8();
+                let n = self.memory.get_byte();
                 self.sub_a_n(n)
             }
             0xd7 => self.rst_n(0x0010),
@@ -1363,12 +1363,12 @@ impl<'a> Cpu<'a> {
                 self.call_cc_nn(c == 1)
             }
             0xde => {
-                let n = self.memory.get_next_8();
+                let n = self.memory.get_byte();
                 self.subc_a_n(n)
             }
             0xdf => self.rst_n(0x0018),
             0xe0 => {
-                let address = 0xff00 | self.memory.get_next_8() as u16;
+                let address = 0xff00 | self.memory.get_byte() as u16;
                 let a = self.registers.get_a();
                 self.memory.write(address, a);
                 true
@@ -1382,12 +1382,12 @@ impl<'a> Cpu<'a> {
             }
             0xe5 => self.push_nn(Reg::HL),
             0xe6 => {
-                let n = self.memory.get_next_8();
+                let n = self.memory.get_byte();
                 self.and_n(n)
             }
             0xe7 => self.rst_n(0x0020),
             0xe8 => {
-                let data = self.memory.get_next_8() as i8 as u16;
+                let data = self.memory.get_byte() as i8 as u16;
                 let address = self.memory.get_stack_pointer();
                 self.registers.set_flag(Flags::Z, false);
                 self.registers.set_flag(Flags::N, false);
@@ -1406,12 +1406,12 @@ impl<'a> Cpu<'a> {
             }
             0xea => self.ld_n_a(Reg::N16),
             0xee => {
-                let n = self.memory.get_next_8();
+                let n = self.memory.get_byte();
                 self.xor_n(n)
             }
             0xef => self.rst_n(0x0028),
             0xf0 => {
-                let address = 0xff00 | self.memory.get_next_8() as u16;
+                let address = 0xff00 | self.memory.get_byte() as u16;
                 self.registers.set_a(self.memory.read(address));
                 true
             }
@@ -1425,12 +1425,12 @@ impl<'a> Cpu<'a> {
             0xf3 => self.di(),
             0xf5 => self.push_nn(Reg::AF),
             0xf6 => {
-                let n = self.memory.get_next_8();
+                let n = self.memory.get_byte();
                 self.or_n(n)
             }
             0xf7 => self.rst_n(0x0030),
             0xf8 => {
-                let data = self.memory.get_next_8() as i8 as u16;
+                let data = self.memory.get_byte() as i8 as u16;
                 let address = self.memory.get_stack_pointer();
                 self.registers
                     .set_flag(Flags::H, (address & 0x0f) + (data & 0x0f) > 0x0f);
@@ -1449,7 +1449,7 @@ impl<'a> Cpu<'a> {
             0xfa => self.ld_a_n(Reg::N16),
             0xfb => self.ei(),
             0xfe => {
-                let n = self.memory.get_next_8();
+                let n = self.memory.get_byte();
                 self.cp_n(n)
             }
             0xff => self.rst_n(0x0038),
@@ -1467,7 +1467,7 @@ impl<'a> Cpu<'a> {
 pub fn update(memory: &mut Memory, timers: &mut Timers, registers: &mut Registers) -> u32 {
     let mut cpu = Cpu::new(memory, timers, registers);
     if !cpu.timers.is_halted {
-        let opcode = cpu.memory.get_next_8();
+        let opcode = cpu.memory.get_byte();
         return cpu.execute_opcode(opcode, false) * 4;
     }
     4

@@ -306,8 +306,8 @@ pub fn print_debug_registers_info(registers: &Registers) {
 
 pub fn print_debug_memory_info(memory: &Memory) {
     if DEBUG_CPU {
-        let opcode = memory.get_next_8_debug();
-        let n16 = memory.get_next_16_debug();
+        let opcode = memory.get_byte_debug();
+        let n16 = memory.get_word_debug();
         let pc = memory.get_program_counter();
         let sp = memory.get_stack_pointer();
         println!("PC: {:04X}  SP: {:04X}", pc, sp);

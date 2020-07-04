@@ -105,28 +105,28 @@ impl Memory {
 
 // General CPU functions
 impl Memory {
-    pub fn get_next_8(&mut self) -> u8 {
+    pub fn get_byte(&mut self) -> u8 {
         let data = self.read(self.get_program_counter());
         self.increment_program_counter(1);
         data
     }
-    pub fn get_next_16(&mut self) -> u16 {
+    pub fn get_word(&mut self) -> u16 {
         let c = self.get_program_counter();
         self.increment_program_counter(2);
         BigEndian::read_u16(&[self.read(c + 1), self.read(c)])
     }
 
-    pub fn get_next_8_debug(&self) -> u8 {
+    pub fn get_byte_debug(&self) -> u8 {
         self.read_memory_at_current_location()
     }
 
-    pub fn write_u16(&mut self, address: u16, data: u16) {
+    pub fn write_word(&mut self, address: u16, data: u16) {
         let bytes = data.to_be_bytes();
         self.write(address, bytes[1]);
         self.write(address.wrapping_add(1), bytes[0]);
     }
 
-    pub fn get_next_16_debug(&self) -> u16 {
+    pub fn get_word_debug(&self) -> u16 {
         let c = self.get_program_counter();
         BigEndian::read_u16(&[self.read(c + 1), self.read(c)])
     }
@@ -285,7 +285,7 @@ impl Memory {
         get_bit_at(self.read(0xff40), 7)
     }
 
-    pub fn window_map_select(&self) -> u16 {
+    fn window_map_select(&self) -> u16 {
         if get_bit_at(self.read(0xff40), 6) {
             return 0x9c00;
         }
@@ -296,18 +296,27 @@ impl Memory {
         get_bit_at(self.read(0xff40), 5)
     }
 
-    pub fn tile_data_select(&self) -> u16 {
+    pub fn bg_tile_data_select(&self) -> u16 {
         if get_bit_at(self.read(0xff40), 4) {
             return 0x8000;
         }
         0x8800
     }
 
-    pub fn background_map_select(&self) -> u16 {
+    fn background_map_select(&self) -> u16 {
         if get_bit_at(self.read(0xff40), 3) {
             return 0x9c00;
         }
         0x9800
+    }
+
+    pub fn map_select(&self) -> u16 {
+        let w_pos = self.window_position();
+        if self.window_enabled() && self.get_ly() >= w_pos.y {
+            self.window_map_select()
+        } else {
+            self.background_map_select()
+        }
     }
 
     pub fn sprite_size(&self) -> bool {
@@ -595,7 +604,14 @@ impl Memory {
             }
             0xff44 => self.write_io_ports(address, 0),
             0xff46 => self.dma_transfer(data),
-            0xff00..=0xff7f => self.write_io_ports(address, data),
+            0xff00
+            | 0xff02
+            | 0xff03
+            | 0xff05
+            | 0xff06
+            | 0xff08..=0xff43
+            | 0xff45
+            | 0xff47..=0xff7f => self.write_io_ports(address, data),
             0xff80..=0xfffe => self.write_hram(address, data),
             0xffff => self.ie_register = data,
         }
