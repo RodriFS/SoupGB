@@ -319,8 +319,11 @@ impl Memory {
         }
     }
 
-    pub fn sprite_size(&self) -> bool {
-        get_bit_at(self.read(0xff40), 2)
+    pub fn sprite_size(&self) -> u8 {
+        if get_bit_at(self.read(0xff40), 2) {
+            return 16;
+        }
+        8
     }
 
     pub fn sprite_enabled(&self) -> bool {
