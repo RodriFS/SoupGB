@@ -126,10 +126,10 @@ impl<'a> Gpu<'a> {
     }
 
     fn has_priority(&self, attributes: u8) -> bool {
-        !get_bit_at(attributes, 4)
+        !get_bit_at(attributes, 7)
     }
 
-    fn render_background(&mut self, buffer: &mut Vec<u32>) {
+    fn render_background(&mut self, buffer: &mut Vec<(u8, u8)>) {
         let palette = self.memory.background_palette();
         let bg_map = self.memory.map_select();
         let Point2D { x: sx, y: sy } = self.memory.background_position();
@@ -149,13 +149,13 @@ impl<'a> Gpu<'a> {
                 let pixel_pos = (tile_pos * 8) + i;
                 let x_pos = self.get_x_pos(window_enabled, sx, wx, pixel_pos as u8) as usize;
                 if x_pos < SCREEN_WIDTH {
-                    buffer[x_pos] = Gpu::get_color(*pixel, palette);
+                    buffer[x_pos] = (*pixel, palette)
                 }
             });
         }
     }
 
-    fn render_sprites(&mut self, buffer: &mut Vec<u32>) {
+    fn render_sprites(&mut self, buffer: &mut Vec<(u8, u8)>) {
         let size = self.memory.sprite_size();
         let current_line = self.memory.get_ly();
         for sprite_pos in (0..160).step_by(4) {
@@ -181,8 +181,8 @@ impl<'a> Gpu<'a> {
                     let pixel_pos = x_pos as usize + i;
                     if pixel_pos < SCREEN_WIDTH && *pixel != 0x00 {
                         let bg_pixel = buffer[pixel_pos];
-                        if self.has_priority(attributes) || bg_pixel == 0xff_ff_ff_u32 {
-                            buffer[pixel_pos] = Gpu::get_color(*pixel, palette);
+                        if self.has_priority(attributes) || bg_pixel.0 == 0x00 {
+                            buffer[pixel_pos] = (*pixel, palette);
                         }
                     }
                 });
@@ -191,14 +191,18 @@ impl<'a> Gpu<'a> {
     }
 
     fn draw_scan_line(&mut self, provider: &Sender<Vec<u32>>) {
-        let mut buffer: Vec<u32> = vec![0; SCREEN_WIDTH];
+        let mut buffer: Vec<(u8, u8)> = vec![(0, 0); SCREEN_WIDTH];
         if self.memory.background_enabled() {
             self.render_background(&mut buffer);
         }
         if self.memory.sprite_enabled() {
             self.render_sprites(&mut buffer);
         }
-        provider.send(buffer).unwrap();
+        let colored_pixels: Vec<u32> = buffer
+            .into_iter()
+            .map(|(pixel, palette)| Gpu::get_color(pixel, palette))
+            .collect();
+        provider.send(colored_pixels).unwrap();
     }
 }
 
