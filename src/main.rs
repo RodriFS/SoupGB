@@ -1,10 +1,8 @@
 use gba::constants::*;
-use gba::emulator::Emulator;
+use gba::emulator::{next, Emulator};
 use minifb::{Key, Scale, Window, WindowOptions};
 use std::fs::File;
 use std::io::Read;
-use std::sync::mpsc;
-use std::thread;
 
 pub fn main() {
     let mut emulator = Emulator::default();
@@ -14,10 +12,6 @@ pub fn main() {
     let mut buffer = Vec::new();
     rom.read_to_end(&mut buffer).unwrap();
     emulator.load_rom(buffer);
-
-    let (to_emu, from_window) = mpsc::channel();
-    let (to_window, from_emu) = mpsc::channel();
-    let handle = thread::spawn(move || emulator.run(to_window, from_window));
 
     let windows_options = WindowOptions {
         scale: Scale::X2,
@@ -31,27 +25,17 @@ pub fn main() {
 
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
     let buf_len = SCREEN_WIDTH * SCREEN_HEIGHT;
-    let mut video_buffer = Vec::with_capacity(buf_len);
     while window.is_open() && !window.is_key_down(Key::Escape) {
-        match from_emu.recv() {
-            Ok(line) => {
-                video_buffer.extend(line);
-                if video_buffer.len() == buf_len + SCREEN_WIDTH {
-                    match window.update_with_buffer(&video_buffer, SCREEN_WIDTH, SCREEN_HEIGHT) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            println!("{}", e);
-                            std::process::exit(0);
-                        }
-                    }
-                    video_buffer.clear();
+        next(&mut emulator, true);
+        if emulator.frame_buffer.len() == buf_len {
+            match window.update_with_buffer(&emulator.frame_buffer, SCREEN_WIDTH, SCREEN_HEIGHT) {
+                Ok(_) => {}
+                Err(e) => {
+                    println!("{}", e);
+                    std::process::exit(0);
                 }
             }
-            Err(_) => {
-                to_emu.send("close").unwrap();
-            }
+            emulator.frame_buffer.clear();
         }
     }
-    to_emu.send("close").unwrap();
-    handle.join().unwrap();
 }

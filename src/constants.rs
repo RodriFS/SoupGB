@@ -37,6 +37,7 @@ pub const OP_TIMES: [u8; 0x100] = [
   3, 3, 2, 0, 0, 4, 2, 4, 4, 1, 4, 0, 0, 0, 2, 4, // E
   3, 3, 2, 1, 0, 4, 2, 4, 3, 2, 4, 1, 0, 0, 2, 4, // F
 ];
+//0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
 
 // Timings when conditionals are taken
 pub const OP_TIMES_TAKEN: [u8; 0x100] = [
@@ -57,6 +58,7 @@ pub const OP_TIMES_TAKEN: [u8; 0x100] = [
   3, 3, 2, 0, 0, 4, 2, 4, 4, 1, 4, 0, 0, 0, 2, 4, // E
   3, 3, 2, 1, 0, 4, 2, 4, 3, 2, 4, 1, 0, 0, 2, 4, // F
 ];
+//0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
 
 // Timings for CB-prefixed opcodes
 pub const CB_OP_TIMES: [u8; 0x100] = [
@@ -77,3 +79,4 @@ pub const CB_OP_TIMES: [u8; 0x100] = [
   2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // E
   2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2, // F
 ];
+//0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
