@@ -45,9 +45,10 @@ fn request_interrupt(memory: &mut Memory, timers: &mut Timers, bit: u8) {
 
 fn update_tima(memory: &mut Memory, timers: &mut Timers) {
     let counter = memory.get_tima().wrapping_add(1);
-    if counter == 0x00 {
+    if counter == 0 {
         timers.reset_timer_counter();
-        request_interrupt(memory, timers, 2);
+        memory.set_tima(memory.get_tma());
+        return request_interrupt(memory, timers, 2);
     }
     memory.set_tima(counter);
 }

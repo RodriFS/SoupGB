@@ -57,6 +57,10 @@ pub struct Memory {
 impl Memory {
     pub fn default() -> Self {
         let mut io_ports = [0; 0x80];
+        // DIV & TIMA
+        io_ports[0x04] = 0xab;
+        io_ports[0x05] = 0xcc;
+
         io_ports[0x10] = 0x80;
         io_ports[0x11] = 0xBF;
         io_ports[0x12] = 0xF3;
@@ -241,7 +245,7 @@ impl Memory {
 
     pub fn update_div(&mut self) {
         let divider_register = self.get_div();
-        if divider_register == 0xff {
+        if divider_register > 64 {
             self.set_div(0x0);
         } else {
             self.set_div(divider_register + 1);
@@ -600,7 +604,10 @@ impl Memory {
                 print!("{}", c);
                 let _ = out.flush();
             }
-            0xff04 => self.write_io_ports(0xff04, 0),
+            0xff04 => {
+                self.write_io_ports(0xff04, 0);
+                self.write_io_ports(0xff05, 0); // TO CHECK
+            }
             0xff07 => {
                 self.set_clock_frequency(data & 0x3);
                 self.write_io_ports(address, data)
