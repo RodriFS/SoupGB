@@ -15,9 +15,12 @@ impl<'a> Cpu<'a> {
         self.emu.clock.set_step(s as u32 * 4);
     }
 
-    fn get_hl_address_data(&mut self) -> u8 {
-        self.emu.clock.set_step(2);
+    fn exec_mid_instruction_steps(&mut self, s: u8) {
+        self.set_step(s);
         next(self.emu, false);
+    }
+
+    fn get_hl_address_data(&mut self) -> u8 {
         let hl = self.emu.registers.get_hl();
         self.emu.memory.read(hl)
     }
@@ -81,11 +84,7 @@ impl<'a> Cpu<'a> {
             Reg::BC => self.emu.registers.get_bc(),
             Reg::DE => self.emu.registers.get_de(),
             Reg::HL => self.emu.registers.get_hl(),
-            Reg::N16 => {
-                // self.emu.clock.set_step(6);
-                // next(self.emu, false);
-                self.emu.memory.get_word()
-            }
+            Reg::N16 => self.emu.memory.get_word(),
             _ => panic!("Unsupported fn ld_a_n"),
         };
         let data = self.emu.memory.read(address);
@@ -495,6 +494,7 @@ impl<'a> Cpu<'a> {
                 0x04 => self.rlc_n(Reg::H),
                 0x05 => self.rlc_n(Reg::L),
                 0x06 => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
                     let to_carry = data >> 7;
                     let result = data << 1 | to_carry;
@@ -502,6 +502,7 @@ impl<'a> Cpu<'a> {
                     self.emu.registers.set_flag(Flags::N, false);
                     self.emu.registers.set_flag(Flags::H, false);
                     self.emu.registers.set_flag(Flags::C, to_carry == 1);
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(result);
                     4
                 }
@@ -513,6 +514,7 @@ impl<'a> Cpu<'a> {
                 0x0c => self.rrc_n(Reg::H),
                 0x0d => self.rrc_n(Reg::L),
                 0x0e => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
                     let to_carry = data & 0x1;
                     let result = to_carry << 7 | data >> 1;
@@ -520,6 +522,7 @@ impl<'a> Cpu<'a> {
                     self.emu.registers.set_flag(Flags::N, false);
                     self.emu.registers.set_flag(Flags::H, false);
                     self.emu.registers.set_flag(Flags::C, to_carry == 1);
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(result);
                     4
                 }
@@ -531,6 +534,7 @@ impl<'a> Cpu<'a> {
                 0x14 => self.rl_n(Reg::H),
                 0x15 => self.rl_n(Reg::L),
                 0x16 => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
                     let result = self.emu.registers.get_flag(Flags::C) | (data << 1);
                     let to_carry = data >> 7;
@@ -538,6 +542,7 @@ impl<'a> Cpu<'a> {
                     self.emu.registers.set_flag(Flags::N, false);
                     self.emu.registers.set_flag(Flags::H, false);
                     self.emu.registers.set_flag(Flags::C, to_carry == 1);
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(result);
                     4
                 }
@@ -549,6 +554,7 @@ impl<'a> Cpu<'a> {
                 0x1c => self.rr_n(Reg::H),
                 0x1d => self.rr_n(Reg::L),
                 0x1e => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
                     let result = self.emu.registers.get_flag(Flags::C) << 7 | data >> 1;
                     let to_carry = data & 0x1;
@@ -556,6 +562,7 @@ impl<'a> Cpu<'a> {
                     self.emu.registers.set_flag(Flags::N, false);
                     self.emu.registers.set_flag(Flags::H, false);
                     self.emu.registers.set_flag(Flags::C, to_carry == 1);
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(result);
                     4
                 }
@@ -567,6 +574,7 @@ impl<'a> Cpu<'a> {
                 0x24 => self.sla_n(Reg::H),
                 0x25 => self.sla_n(Reg::L),
                 0x26 => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
                     let result = data << 1;
                     let to_carry = data >> 7;
@@ -574,6 +582,7 @@ impl<'a> Cpu<'a> {
                     self.emu.registers.set_flag(Flags::N, false);
                     self.emu.registers.set_flag(Flags::H, false);
                     self.emu.registers.set_flag(Flags::C, to_carry == 1);
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(result);
                     4
                 }
@@ -585,6 +594,7 @@ impl<'a> Cpu<'a> {
                 0x2c => self.sra_n(Reg::H),
                 0x2d => self.sra_n(Reg::L),
                 0x2e => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
                     let result = (data >> 1) | (data & 0x80);
                     let to_carry = data & 0x01;
@@ -592,6 +602,7 @@ impl<'a> Cpu<'a> {
                     self.emu.registers.set_flag(Flags::N, false);
                     self.emu.registers.set_flag(Flags::H, false);
                     self.emu.registers.set_flag(Flags::C, to_carry == 1);
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(result);
                     4
                 }
@@ -603,12 +614,14 @@ impl<'a> Cpu<'a> {
                 0x34 => self.swap_n(Reg::H),
                 0x35 => self.swap_n(Reg::L),
                 0x36 => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
                     let result = swap_nibbles(data);
                     self.emu.registers.set_flag(Flags::Z, result == 0);
                     self.emu.registers.set_flag(Flags::N, false);
                     self.emu.registers.set_flag(Flags::C, false);
                     self.emu.registers.set_flag(Flags::H, false);
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(result);
                     4
                 }
@@ -620,6 +633,7 @@ impl<'a> Cpu<'a> {
                 0x3c => self.srl_n(Reg::H),
                 0x3d => self.srl_n(Reg::L),
                 0x3e => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
                     let result = data >> 1;
                     let to_carry = data & 0x01;
@@ -627,6 +641,7 @@ impl<'a> Cpu<'a> {
                     self.emu.registers.set_flag(Flags::N, false);
                     self.emu.registers.set_flag(Flags::H, false);
                     self.emu.registers.set_flag(Flags::C, to_carry == 1);
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(result);
                     4
                 }
@@ -638,6 +653,7 @@ impl<'a> Cpu<'a> {
                 0x44 => self.bit_b_r(self.emu.registers.h, 0),
                 0x45 => self.bit_b_r(self.emu.registers.l, 0),
                 0x46 => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
                     self.bit_b_r(data, 0);
                     3
@@ -650,6 +666,7 @@ impl<'a> Cpu<'a> {
                 0x4c => self.bit_b_r(self.emu.registers.h, 1),
                 0x4d => self.bit_b_r(self.emu.registers.l, 1),
                 0x4e => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
                     self.bit_b_r(data, 1);
                     3
@@ -662,6 +679,7 @@ impl<'a> Cpu<'a> {
                 0x54 => self.bit_b_r(self.emu.registers.h, 2),
                 0x55 => self.bit_b_r(self.emu.registers.l, 2),
                 0x56 => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
                     self.bit_b_r(data, 2);
                     3
@@ -674,6 +692,7 @@ impl<'a> Cpu<'a> {
                 0x5c => self.bit_b_r(self.emu.registers.h, 3),
                 0x5d => self.bit_b_r(self.emu.registers.l, 3),
                 0x5e => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
                     self.bit_b_r(data, 3);
                     3
@@ -686,6 +705,7 @@ impl<'a> Cpu<'a> {
                 0x64 => self.bit_b_r(self.emu.registers.h, 4),
                 0x65 => self.bit_b_r(self.emu.registers.l, 4),
                 0x66 => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
                     self.bit_b_r(data, 4);
                     3
@@ -698,6 +718,7 @@ impl<'a> Cpu<'a> {
                 0x6c => self.bit_b_r(self.emu.registers.h, 5),
                 0x6d => self.bit_b_r(self.emu.registers.l, 5),
                 0x6e => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
                     self.bit_b_r(data, 5);
                     3
@@ -710,6 +731,7 @@ impl<'a> Cpu<'a> {
                 0x74 => self.bit_b_r(self.emu.registers.h, 6),
                 0x75 => self.bit_b_r(self.emu.registers.l, 6),
                 0x76 => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
                     self.bit_b_r(data, 6);
                     3
@@ -722,6 +744,7 @@ impl<'a> Cpu<'a> {
                 0x7c => self.bit_b_r(self.emu.registers.h, 7),
                 0x7d => self.bit_b_r(self.emu.registers.l, 7),
                 0x7e => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
                     self.bit_b_r(data, 7);
                     3
@@ -734,7 +757,9 @@ impl<'a> Cpu<'a> {
                 0x84 => self.res_b_r(Reg::H, 0),
                 0x85 => self.res_b_r(Reg::L, 0),
                 0x86 => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(data & !1);
                     4
                 }
@@ -746,7 +771,9 @@ impl<'a> Cpu<'a> {
                 0x8c => self.res_b_r(Reg::H, 1),
                 0x8d => self.res_b_r(Reg::L, 1),
                 0x8e => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(data & !(1 << 1));
                     4
                 }
@@ -758,7 +785,9 @@ impl<'a> Cpu<'a> {
                 0x94 => self.res_b_r(Reg::H, 2),
                 0x95 => self.res_b_r(Reg::L, 2),
                 0x96 => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(data & !(1 << 2));
                     4
                 }
@@ -770,7 +799,9 @@ impl<'a> Cpu<'a> {
                 0x9c => self.res_b_r(Reg::H, 3),
                 0x9d => self.res_b_r(Reg::L, 3),
                 0x9e => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(data & !(1 << 3));
                     4
                 }
@@ -782,7 +813,9 @@ impl<'a> Cpu<'a> {
                 0xa4 => self.res_b_r(Reg::H, 4),
                 0xa5 => self.res_b_r(Reg::L, 4),
                 0xa6 => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(data & !(1 << 4));
                     4
                 }
@@ -794,7 +827,9 @@ impl<'a> Cpu<'a> {
                 0xac => self.res_b_r(Reg::H, 5),
                 0xad => self.res_b_r(Reg::L, 5),
                 0xae => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(data & !(1 << 5));
                     4
                 }
@@ -806,7 +841,9 @@ impl<'a> Cpu<'a> {
                 0xb4 => self.res_b_r(Reg::H, 6),
                 0xb5 => self.res_b_r(Reg::L, 6),
                 0xb6 => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(data & !(1 << 6));
                     4
                 }
@@ -818,7 +855,9 @@ impl<'a> Cpu<'a> {
                 0xbc => self.res_b_r(Reg::H, 7),
                 0xbd => self.res_b_r(Reg::L, 7),
                 0xbe => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(data & !(1 << 7));
                     4
                 }
@@ -830,7 +869,9 @@ impl<'a> Cpu<'a> {
                 0xc4 => self.set_b_r(Reg::H, 0),
                 0xc5 => self.set_b_r(Reg::L, 0),
                 0xc6 => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(data | 1);
                     4
                 }
@@ -842,7 +883,9 @@ impl<'a> Cpu<'a> {
                 0xcc => self.set_b_r(Reg::H, 1),
                 0xcd => self.set_b_r(Reg::L, 1),
                 0xce => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(data | (1 << 1));
                     4
                 }
@@ -854,7 +897,9 @@ impl<'a> Cpu<'a> {
                 0xd4 => self.set_b_r(Reg::H, 2),
                 0xd5 => self.set_b_r(Reg::L, 2),
                 0xd6 => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(data | (1 << 2));
                     4
                 }
@@ -866,7 +911,9 @@ impl<'a> Cpu<'a> {
                 0xdc => self.set_b_r(Reg::H, 3),
                 0xdd => self.set_b_r(Reg::L, 3),
                 0xde => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(data | (1 << 3));
                     4
                 }
@@ -878,7 +925,9 @@ impl<'a> Cpu<'a> {
                 0xe4 => self.set_b_r(Reg::H, 4),
                 0xe5 => self.set_b_r(Reg::L, 4),
                 0xe6 => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(data | (1 << 4));
                     4
                 }
@@ -890,7 +939,9 @@ impl<'a> Cpu<'a> {
                 0xec => self.set_b_r(Reg::H, 5),
                 0xed => self.set_b_r(Reg::L, 5),
                 0xee => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(data | (1 << 5));
                     4
                 }
@@ -902,7 +953,9 @@ impl<'a> Cpu<'a> {
                 0xf4 => self.set_b_r(Reg::H, 6),
                 0xf5 => self.set_b_r(Reg::L, 6),
                 0xf6 => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(data | (1 << 6));
                     4
                 }
@@ -914,7 +967,9 @@ impl<'a> Cpu<'a> {
                 0xfc => self.set_b_r(Reg::H, 7),
                 0xfd => self.set_b_r(Reg::L, 7),
                 0xfe => {
+                    self.exec_mid_instruction_steps(1);
                     let data = self.get_hl_address_data();
+                    self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(data | (1 << 7));
                     4
                 }
@@ -1041,6 +1096,7 @@ impl<'a> Cpu<'a> {
                 self.emu
                     .registers
                     .set_flag(Flags::H, test_flag_add(data, 1, Flags::H));
+                self.exec_mid_instruction_steps(1);
                 self.write_in_hl_address(data.wrapping_add(1));
                 3
             }
@@ -1053,14 +1109,16 @@ impl<'a> Cpu<'a> {
                 self.emu
                     .registers
                     .set_flag(Flags::H, test_flag_sub(data, 1, Flags::H));
+                self.exec_mid_instruction_steps(1);
                 self.write_in_hl_address(data.wrapping_sub(1));
                 3
             }
             0x36 => {
                 let data = self.emu.memory.get_byte();
                 let hl = self.emu.registers.get_hl();
+                self.exec_mid_instruction_steps(1);
                 self.emu.memory.write(hl, data);
-                3
+                2
             }
             0x37 => {
                 self.emu.registers.set_flag(Flags::C, true);
@@ -1482,8 +1540,9 @@ impl<'a> Cpu<'a> {
             0xe0 => {
                 let address = 0xff00 | self.emu.memory.get_byte() as u16;
                 let a = self.emu.registers.get_a();
+                self.exec_mid_instruction_steps(1);
                 self.emu.memory.write(address, a);
-                3
+                1
             }
             0xe1 => self.pop_nn(Reg::HL),
             0xe2 => {
@@ -1521,6 +1580,7 @@ impl<'a> Cpu<'a> {
                 1
             }
             0xea => {
+                self.exec_mid_instruction_steps(2);
                 self.ld_n_a(Reg::N16);
                 4
             }
@@ -1531,11 +1591,10 @@ impl<'a> Cpu<'a> {
             }
             0xef => self.rst_n(0x0028),
             0xf0 => {
+                self.exec_mid_instruction_steps(1);
                 let address = 0xff00 | self.emu.memory.get_byte() as u16;
-                // self.emu.clock.set_step(2);
-                // next(self.emu, false);
                 self.emu.registers.set_a(self.emu.memory.read(address));
-                3
+                1
             }
             0xf1 => self.pop_nn(Reg::AF),
             0xf2 => {
@@ -1572,6 +1631,7 @@ impl<'a> Cpu<'a> {
                 2
             }
             0xfa => {
+                self.exec_mid_instruction_steps(2);
                 self.ld_a_n(Reg::N16);
                 4
             }

@@ -50,7 +50,6 @@ pub struct Memory {
     stack_pointer: u16,
     program_counter: u16,
     pub input_clock_select: u32,
-    pub video_buffer: Vec<u32>,
 }
 
 // General Initialization functions
@@ -102,7 +101,6 @@ impl Memory {
             stack_pointer: 0xfffe,
             program_counter: 0x100,
             input_clock_select: 1024,
-            video_buffer: vec![0; SCREEN_HEIGHT * SCREEN_WIDTH],
         }
     }
 }
@@ -244,12 +242,8 @@ impl Memory {
     }
 
     pub fn update_div(&mut self) {
-        let divider_register = self.get_div();
-        if divider_register > 64 {
-            self.set_div(0x0);
-        } else {
-            self.set_div(divider_register + 1);
-        }
+        let divider_register = self.get_div().wrapping_add(1);
+        self.set_div(divider_register);
     }
 
     pub fn get_clock_frequency(&self) -> u8 {
