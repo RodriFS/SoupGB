@@ -1,3 +1,4 @@
+use super::alu::*;
 use super::emulator::{next, Emulator};
 use super::registers::{Flags, Reg};
 use super::utils::*;
@@ -125,137 +126,6 @@ impl<'a> Cpu<'a> {
         }
         3
     }
-    fn add_a_n(&mut self, data: u8) -> u8 {
-        let a = self.emu.registers.get_a();
-        self.emu
-            .registers
-            .set_flag(Flags::Z, test_flag_add(a, data, Flags::Z));
-        self.emu.registers.set_flag(Flags::N, false);
-        self.emu
-            .registers
-            .set_flag(Flags::H, test_flag_add(a, data, Flags::H));
-        self.emu
-            .registers
-            .set_flag(Flags::C, test_flag_add(a, data, Flags::C));
-        self.emu.registers.set_a(a.wrapping_add(data));
-        1
-    }
-    fn addc_a_n(&mut self, data: u8) -> u8 {
-        let carry = self.emu.registers.get_flag(Flags::C);
-        let a = self.emu.registers.get_a();
-        self.emu
-            .registers
-            .set_flag(Flags::Z, test_flag_add_carry(a, data, carry, Flags::Z));
-        self.emu.registers.set_flag(Flags::N, false);
-        self.emu
-            .registers
-            .set_flag(Flags::H, test_flag_add_carry(a, data, carry, Flags::H));
-        self.emu
-            .registers
-            .set_flag(Flags::C, test_flag_add_carry(a, data, carry, Flags::C));
-        self.emu
-            .registers
-            .set_a(a.wrapping_add(data).wrapping_add(carry));
-        1
-    }
-    fn sub_a_n(&mut self, data: u8) -> u8 {
-        let a = self.emu.registers.get_a();
-        self.emu
-            .registers
-            .set_flag(Flags::Z, test_flag_sub(a, data, Flags::Z));
-        self.emu.registers.set_flag(Flags::N, true);
-        self.emu
-            .registers
-            .set_flag(Flags::H, test_flag_sub(a, data, Flags::H));
-        self.emu
-            .registers
-            .set_flag(Flags::C, test_flag_sub(a, data, Flags::C));
-        self.emu.registers.set_a(a.wrapping_sub(data));
-        1
-    }
-    fn subc_a_n(&mut self, data: u8) -> u8 {
-        let carry = self.emu.registers.get_flag(Flags::C);
-        let a = self.emu.registers.get_a();
-        self.emu
-            .registers
-            .set_flag(Flags::Z, test_flag_sub_carry(a, data, carry, Flags::Z));
-        self.emu.registers.set_flag(Flags::N, true);
-        self.emu
-            .registers
-            .set_flag(Flags::H, test_flag_sub_carry(a, data, carry, Flags::H));
-        self.emu
-            .registers
-            .set_flag(Flags::C, test_flag_sub_carry(a, data, carry, Flags::C));
-        self.emu
-            .registers
-            .set_a(a.wrapping_sub(data).wrapping_sub(carry));
-        1
-    }
-    fn and_n(&mut self, data: u8) -> u8 {
-        let result = data & self.emu.registers.get_a();
-        self.emu.registers.set_flag(Flags::Z, result == 0);
-        self.emu.registers.set_flag(Flags::N, false);
-        self.emu.registers.set_flag(Flags::H, true);
-        self.emu.registers.set_flag(Flags::C, false);
-        self.emu.registers.set_a(result);
-        1
-    }
-    fn or_n(&mut self, data: u8) -> u8 {
-        let result = data | self.emu.registers.get_a();
-        self.emu.registers.set_flag(Flags::Z, result == 0);
-        self.emu.registers.set_flag(Flags::N, false);
-        self.emu.registers.set_flag(Flags::H, false);
-        self.emu.registers.set_flag(Flags::C, false);
-        self.emu.registers.set_a(result);
-        1
-    }
-    fn xor_n(&mut self, data: u8) -> u8 {
-        let result = data ^ self.emu.registers.get_a();
-        self.emu.registers.set_flag(Flags::Z, result == 0);
-        self.emu.registers.set_flag(Flags::N, false);
-        self.emu.registers.set_flag(Flags::H, false);
-        self.emu.registers.set_flag(Flags::C, false);
-        self.emu.registers.set_a(result);
-        1
-    }
-    fn cp_n(&mut self, data: u8) -> u8 {
-        let a = self.emu.registers.get_a();
-        self.emu
-            .registers
-            .set_flag(Flags::Z, test_flag_sub(a, data, Flags::Z));
-        self.emu.registers.set_flag(Flags::N, true);
-        self.emu
-            .registers
-            .set_flag(Flags::H, test_flag_sub(a, data, Flags::H));
-        self.emu
-            .registers
-            .set_flag(Flags::C, test_flag_sub(a, data, Flags::C));
-        1
-    }
-    fn inc_n(&mut self, reg: Reg) -> u8 {
-        let data = self.emu.registers.get_reg_u8(&reg);
-        self.emu
-            .registers
-            .set_flag(Flags::Z, test_flag_add(data, 1, Flags::Z));
-        self.emu.registers.set_flag(Flags::N, false);
-        self.emu
-            .registers
-            .set_flag(Flags::H, test_flag_add(data, 1, Flags::H));
-        self.emu.registers.set_reg_u8(&reg, data.wrapping_add(1));
-        1
-    }
-    fn dec_n(&mut self, reg: Reg) -> u8 {
-        let data = self.emu.registers.get_reg_u8(&reg);
-        self.emu
-            .registers
-            .set_flag(Flags::Z, test_flag_sub(data, 1, Flags::Z));
-        self.emu.registers.set_flag(Flags::N, true);
-        self.emu
-            .registers
-            .set_flag(Flags::H, test_flag_sub(data, 1, Flags::H));
-        self.emu.registers.set_reg_u8(&reg, data.wrapping_sub(1));
-        1
-    }
     fn inc_nn(&mut self, reg: Reg) -> u8 {
         let address = self.emu.registers.get_reg_u16(&reg);
         self.emu
@@ -270,81 +140,6 @@ impl<'a> Cpu<'a> {
             .set_reg_u16(&reg, address.wrapping_sub(1));
         2
     }
-    fn add_hl_n(&mut self, reg: Reg) -> u8 {
-        let hl = self.emu.registers.get_hl();
-        let data = match reg {
-            Reg::BC => self.emu.registers.get_bc(),
-            Reg::DE => self.emu.registers.get_de(),
-            Reg::HL => hl,
-            Reg::SP => self.emu.memory.get_stack_pointer(),
-            _ => panic!("Unsupported fn add_hl_n"),
-        };
-        let result = hl.wrapping_add(data);
-        self.emu.registers.set_flag(Flags::N, false);
-        self.emu
-            .registers
-            .set_flag(Flags::H, test_flag_add_16(hl, data, Flags::H));
-        self.emu
-            .registers
-            .set_flag(Flags::C, test_flag_add_16(hl, data, Flags::C));
-        self.emu.registers.set_hl(result);
-        2
-    }
-    fn swap_n(&mut self, reg: Reg) -> u8 {
-        let data = self.emu.registers.get_reg_u8(&reg);
-        let result = swap_nibbles(data);
-        self.emu.registers.set_flag(Flags::Z, result == 0);
-        self.emu.registers.set_flag(Flags::N, false);
-        self.emu.registers.set_flag(Flags::C, false);
-        self.emu.registers.set_flag(Flags::H, false);
-        self.emu.registers.set_reg_u8(&reg, result);
-        2
-    }
-    fn jr_cc_n(&mut self, condition: bool) -> u8 {
-        let address = self.emu.memory.get_byte() as i8;
-        if condition {
-            self.emu.memory.set_program_counter(
-                self.emu
-                    .memory
-                    .get_program_counter()
-                    .wrapping_add(address as u16),
-            );
-            return 3;
-        }
-        2
-    }
-    fn ret_cc(&mut self, condition: bool) -> u8 {
-        if condition {
-            let address = self.emu.memory.pop_from_stack();
-            self.emu.memory.set_program_counter(address);
-            return 5;
-        }
-        2
-    }
-    fn jp_cc_nn(&mut self, condition: bool) -> u8 {
-        let address = self.emu.memory.get_word();
-        if condition {
-            self.emu.memory.set_program_counter(address);
-            return 4;
-        }
-        3
-    }
-    fn call_cc_nn(&mut self, condition: bool) -> u8 {
-        let address = self.emu.memory.get_word();
-        if condition {
-            let next_pc = self.emu.memory.get_program_counter();
-            self.emu.memory.push_to_stack(next_pc);
-            self.emu.memory.set_program_counter(address);
-            return 6;
-        }
-        3
-    }
-    fn rst_n(&mut self, new_address: u16) -> u8 {
-        let current_address = self.emu.memory.get_program_counter();
-        self.emu.memory.push_to_stack(current_address);
-        self.emu.memory.set_program_counter(new_address);
-        4
-    }
     fn di(&mut self) -> u8 {
         self.emu.timers.clear_master_enabled();
         1
@@ -352,89 +147,6 @@ impl<'a> Cpu<'a> {
     fn ei(&mut self) -> u8 {
         self.emu.timers.set_master_enabled_on();
         1
-    }
-    fn cb(&mut self) -> u8 {
-        let address = self.emu.memory.get_byte();
-        self.execute_opcode(address, true);
-        0
-    }
-
-    fn rlc_n(&mut self, reg: Reg) -> u8 {
-        let data = self.emu.registers.get_reg_u8(&reg);
-        let to_carry = data >> 7;
-        let result = data << 1 | to_carry;
-        self.emu.registers.set_flag(Flags::Z, result == 0);
-        self.emu.registers.set_flag(Flags::N, false);
-        self.emu.registers.set_flag(Flags::H, false);
-        self.emu.registers.set_flag(Flags::C, to_carry == 1);
-        self.emu.registers.set_reg_u8(&reg, result);
-        2
-    }
-    fn rl_n(&mut self, reg: Reg) -> u8 {
-        let data = self.emu.registers.get_reg_u8(&reg);
-        let result = self.emu.registers.get_flag(Flags::C) | (data << 1);
-        let to_carry = data >> 7;
-        self.emu.registers.set_flag(Flags::Z, result == 0);
-        self.emu.registers.set_flag(Flags::N, false);
-        self.emu.registers.set_flag(Flags::H, false);
-        self.emu.registers.set_flag(Flags::C, to_carry == 1);
-        self.emu.registers.set_reg_u8(&reg, result);
-        2
-    }
-    fn rrc_n(&mut self, reg: Reg) -> u8 {
-        let data = self.emu.registers.get_reg_u8(&reg);
-        let to_carry = data & 0x1;
-        let result = to_carry << 7 | data >> 1;
-        self.emu.registers.set_flag(Flags::Z, result == 0);
-        self.emu.registers.set_flag(Flags::N, false);
-        self.emu.registers.set_flag(Flags::H, false);
-        self.emu.registers.set_flag(Flags::C, to_carry == 1);
-        self.emu.registers.set_reg_u8(&reg, result);
-        2
-    }
-    fn rr_n(&mut self, reg: Reg) -> u8 {
-        let data = self.emu.registers.get_reg_u8(&reg);
-        let result = self.emu.registers.get_flag(Flags::C) << 7 | data >> 1;
-        let to_carry = data & 0x1;
-        self.emu.registers.set_flag(Flags::Z, result == 0);
-        self.emu.registers.set_flag(Flags::N, false);
-        self.emu.registers.set_flag(Flags::H, false);
-        self.emu.registers.set_flag(Flags::C, to_carry == 1);
-        self.emu.registers.set_reg_u8(&reg, result);
-        2
-    }
-    fn sla_n(&mut self, reg: Reg) -> u8 {
-        let data = self.emu.registers.get_reg_u8(&reg);
-        let result = data << 1;
-        let to_carry = data >> 7;
-        self.emu.registers.set_flag(Flags::Z, result == 0);
-        self.emu.registers.set_flag(Flags::N, false);
-        self.emu.registers.set_flag(Flags::H, false);
-        self.emu.registers.set_flag(Flags::C, to_carry == 1);
-        self.emu.registers.set_reg_u8(&reg, result);
-        2
-    }
-    fn sra_n(&mut self, reg: Reg) -> u8 {
-        let data = self.emu.registers.get_reg_u8(&reg);
-        let result = (data >> 1) | (data & 0x80);
-        let to_carry = data & 0x01;
-        self.emu.registers.set_flag(Flags::Z, result == 0);
-        self.emu.registers.set_flag(Flags::N, false);
-        self.emu.registers.set_flag(Flags::H, false);
-        self.emu.registers.set_flag(Flags::C, to_carry == 1);
-        self.emu.registers.set_reg_u8(&reg, result);
-        2
-    }
-    fn srl_n(&mut self, reg: Reg) -> u8 {
-        let data = self.emu.registers.get_reg_u8(&reg);
-        let result = data >> 1;
-        let to_carry = data & 0x01;
-        self.emu.registers.set_flag(Flags::Z, result == 0);
-        self.emu.registers.set_flag(Flags::N, false);
-        self.emu.registers.set_flag(Flags::H, false);
-        self.emu.registers.set_flag(Flags::C, to_carry == 1);
-        self.emu.registers.set_reg_u8(&reg, result);
-        2
     }
     fn bit_b_r(&mut self, data: u8, bit: u8) -> u8 {
         let result = data & (1 << bit);
@@ -487,165 +199,293 @@ impl<'a> Cpu<'a> {
     fn execute_opcode(&mut self, opcode: u8, is_callback: bool) {
         if is_callback {
             let cb_timing = match opcode {
-                0x00 => self.rlc_n(Reg::B),
-                0x01 => self.rlc_n(Reg::C),
-                0x02 => self.rlc_n(Reg::D),
-                0x03 => self.rlc_n(Reg::E),
-                0x04 => self.rlc_n(Reg::H),
-                0x05 => self.rlc_n(Reg::L),
+                0x00 => {
+                    self.emu.registers.b = rlc_n(self.emu.registers.b, &mut self.emu.registers);
+                    2
+                }
+                0x01 => {
+                    self.emu.registers.c = rlc_n(self.emu.registers.c, &mut self.emu.registers);
+                    2
+                }
+                0x02 => {
+                    self.emu.registers.d = rlc_n(self.emu.registers.d, &mut self.emu.registers);
+                    2
+                }
+                0x03 => {
+                    self.emu.registers.e = rlc_n(self.emu.registers.e, &mut self.emu.registers);
+                    2
+                }
+                0x04 => {
+                    self.emu.registers.h = rlc_n(self.emu.registers.h, &mut self.emu.registers);
+                    2
+                }
+                0x05 => {
+                    self.emu.registers.l = rlc_n(self.emu.registers.l, &mut self.emu.registers);
+                    2
+                }
                 0x06 => {
                     self.exec_mid_instruction_steps(1);
-                    let data = self.get_hl_address_data();
-                    let to_carry = data >> 7;
-                    let result = data << 1 | to_carry;
-                    self.emu.registers.set_flag(Flags::Z, result == 0);
-                    self.emu.registers.set_flag(Flags::N, false);
-                    self.emu.registers.set_flag(Flags::H, false);
-                    self.emu.registers.set_flag(Flags::C, to_carry == 1);
+                    let hl = self.get_hl_address_data();
+                    let result = rlc_n(hl, &mut self.emu.registers);
                     self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(result);
                     4
                 }
-                0x07 => self.rlc_n(Reg::A),
-                0x08 => self.rrc_n(Reg::B),
-                0x09 => self.rrc_n(Reg::C),
-                0x0a => self.rrc_n(Reg::D),
-                0x0b => self.rrc_n(Reg::E),
-                0x0c => self.rrc_n(Reg::H),
-                0x0d => self.rrc_n(Reg::L),
+                0x07 => {
+                    self.emu.registers.a = rlc_n(self.emu.registers.a, &mut self.emu.registers);
+                    2
+                }
+                0x08 => {
+                    self.emu.registers.b = rrc_n(self.emu.registers.b, &mut self.emu.registers);
+                    2
+                }
+                0x09 => {
+                    self.emu.registers.c = rrc_n(self.emu.registers.c, &mut self.emu.registers);
+                    2
+                }
+                0x0a => {
+                    self.emu.registers.d = rrc_n(self.emu.registers.d, &mut self.emu.registers);
+                    2
+                }
+                0x0b => {
+                    self.emu.registers.e = rrc_n(self.emu.registers.e, &mut self.emu.registers);
+                    2
+                }
+                0x0c => {
+                    self.emu.registers.h = rrc_n(self.emu.registers.h, &mut self.emu.registers);
+                    2
+                }
+                0x0d => {
+                    self.emu.registers.l = rrc_n(self.emu.registers.l, &mut self.emu.registers);
+                    2
+                }
                 0x0e => {
                     self.exec_mid_instruction_steps(1);
-                    let data = self.get_hl_address_data();
-                    let to_carry = data & 0x1;
-                    let result = to_carry << 7 | data >> 1;
-                    self.emu.registers.set_flag(Flags::Z, result == 0);
-                    self.emu.registers.set_flag(Flags::N, false);
-                    self.emu.registers.set_flag(Flags::H, false);
-                    self.emu.registers.set_flag(Flags::C, to_carry == 1);
+                    let hl = self.get_hl_address_data();
+                    let result = rrc_n(hl, &mut self.emu.registers);
                     self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(result);
                     4
                 }
-                0x0f => self.rrc_n(Reg::A),
-                0x10 => self.rl_n(Reg::B),
-                0x11 => self.rl_n(Reg::C),
-                0x12 => self.rl_n(Reg::D),
-                0x13 => self.rl_n(Reg::E),
-                0x14 => self.rl_n(Reg::H),
-                0x15 => self.rl_n(Reg::L),
+                0x0f => {
+                    self.emu.registers.a = rrc_n(self.emu.registers.a, &mut self.emu.registers);
+                    2
+                }
+                0x10 => {
+                    self.emu.registers.b = rl_n(self.emu.registers.b, &mut self.emu.registers);
+                    2
+                }
+                0x11 => {
+                    self.emu.registers.c = rl_n(self.emu.registers.c, &mut self.emu.registers);
+                    2
+                }
+                0x12 => {
+                    self.emu.registers.d = rl_n(self.emu.registers.d, &mut self.emu.registers);
+                    2
+                }
+                0x13 => {
+                    self.emu.registers.e = rl_n(self.emu.registers.e, &mut self.emu.registers);
+                    2
+                }
+                0x14 => {
+                    self.emu.registers.h = rl_n(self.emu.registers.h, &mut self.emu.registers);
+                    2
+                }
+                0x15 => {
+                    self.emu.registers.l = rl_n(self.emu.registers.l, &mut self.emu.registers);
+                    2
+                }
                 0x16 => {
                     self.exec_mid_instruction_steps(1);
-                    let data = self.get_hl_address_data();
-                    let result = self.emu.registers.get_flag(Flags::C) | (data << 1);
-                    let to_carry = data >> 7;
-                    self.emu.registers.set_flag(Flags::Z, result == 0);
-                    self.emu.registers.set_flag(Flags::N, false);
-                    self.emu.registers.set_flag(Flags::H, false);
-                    self.emu.registers.set_flag(Flags::C, to_carry == 1);
+                    let hl = self.get_hl_address_data();
+                    let result = rl_n(hl, &mut self.emu.registers);
                     self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(result);
                     4
                 }
-                0x17 => self.rl_n(Reg::A),
-                0x18 => self.rr_n(Reg::B),
-                0x19 => self.rr_n(Reg::C),
-                0x1a => self.rr_n(Reg::D),
-                0x1b => self.rr_n(Reg::E),
-                0x1c => self.rr_n(Reg::H),
-                0x1d => self.rr_n(Reg::L),
+                0x17 => {
+                    self.emu.registers.a = rl_n(self.emu.registers.a, &mut self.emu.registers);
+                    2
+                }
+                0x18 => {
+                    self.emu.registers.b = rr_n(self.emu.registers.b, &mut self.emu.registers);
+                    2
+                }
+                0x19 => {
+                    self.emu.registers.c = rr_n(self.emu.registers.c, &mut self.emu.registers);
+                    2
+                }
+                0x1a => {
+                    self.emu.registers.d = rr_n(self.emu.registers.d, &mut self.emu.registers);
+                    2
+                }
+                0x1b => {
+                    self.emu.registers.e = rr_n(self.emu.registers.e, &mut self.emu.registers);
+                    2
+                }
+                0x1c => {
+                    self.emu.registers.h = rr_n(self.emu.registers.h, &mut self.emu.registers);
+                    2
+                }
+                0x1d => {
+                    self.emu.registers.l = rr_n(self.emu.registers.l, &mut self.emu.registers);
+                    2
+                }
                 0x1e => {
                     self.exec_mid_instruction_steps(1);
-                    let data = self.get_hl_address_data();
-                    let result = self.emu.registers.get_flag(Flags::C) << 7 | data >> 1;
-                    let to_carry = data & 0x1;
-                    self.emu.registers.set_flag(Flags::Z, result == 0);
-                    self.emu.registers.set_flag(Flags::N, false);
-                    self.emu.registers.set_flag(Flags::H, false);
-                    self.emu.registers.set_flag(Flags::C, to_carry == 1);
+                    let hl = self.get_hl_address_data();
+                    let result = rr_n(hl, &mut self.emu.registers);
                     self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(result);
                     4
                 }
-                0x1f => self.rr_n(Reg::A),
-                0x20 => self.sla_n(Reg::B),
-                0x21 => self.sla_n(Reg::C),
-                0x22 => self.sla_n(Reg::D),
-                0x23 => self.sla_n(Reg::E),
-                0x24 => self.sla_n(Reg::H),
-                0x25 => self.sla_n(Reg::L),
+                0x1f => {
+                    self.emu.registers.a = rr_n(self.emu.registers.a, &mut self.emu.registers);
+                    2
+                }
+                0x20 => {
+                    self.emu.registers.b = sla_n(self.emu.registers.b, &mut self.emu.registers);
+                    2
+                }
+                0x21 => {
+                    self.emu.registers.c = sla_n(self.emu.registers.c, &mut self.emu.registers);
+                    2
+                }
+                0x22 => {
+                    self.emu.registers.d = sla_n(self.emu.registers.d, &mut self.emu.registers);
+                    2
+                }
+                0x23 => {
+                    self.emu.registers.e = sla_n(self.emu.registers.e, &mut self.emu.registers);
+                    2
+                }
+                0x24 => {
+                    self.emu.registers.h = sla_n(self.emu.registers.h, &mut self.emu.registers);
+                    2
+                }
+                0x25 => {
+                    self.emu.registers.l = sla_n(self.emu.registers.l, &mut self.emu.registers);
+                    2
+                }
                 0x26 => {
                     self.exec_mid_instruction_steps(1);
-                    let data = self.get_hl_address_data();
-                    let result = data << 1;
-                    let to_carry = data >> 7;
-                    self.emu.registers.set_flag(Flags::Z, result == 0);
-                    self.emu.registers.set_flag(Flags::N, false);
-                    self.emu.registers.set_flag(Flags::H, false);
-                    self.emu.registers.set_flag(Flags::C, to_carry == 1);
+                    let hl = self.get_hl_address_data();
+                    let result = sla_n(hl, &mut self.emu.registers);
                     self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(result);
                     4
                 }
-                0x27 => self.sla_n(Reg::A),
-                0x28 => self.sra_n(Reg::B),
-                0x29 => self.sra_n(Reg::C),
-                0x2a => self.sra_n(Reg::D),
-                0x2b => self.sra_n(Reg::E),
-                0x2c => self.sra_n(Reg::H),
-                0x2d => self.sra_n(Reg::L),
+                0x27 => {
+                    self.emu.registers.a = sla_n(self.emu.registers.a, &mut self.emu.registers);
+                    2
+                }
+                0x28 => {
+                    self.emu.registers.b = sra_n(self.emu.registers.b, &mut self.emu.registers);
+                    2
+                }
+                0x29 => {
+                    self.emu.registers.c = sra_n(self.emu.registers.c, &mut self.emu.registers);
+                    2
+                }
+                0x2a => {
+                    self.emu.registers.d = sra_n(self.emu.registers.d, &mut self.emu.registers);
+                    2
+                }
+                0x2b => {
+                    self.emu.registers.e = sra_n(self.emu.registers.e, &mut self.emu.registers);
+                    2
+                }
+                0x2c => {
+                    self.emu.registers.h = sra_n(self.emu.registers.h, &mut self.emu.registers);
+                    2
+                }
+                0x2d => {
+                    self.emu.registers.l = sra_n(self.emu.registers.l, &mut self.emu.registers);
+                    2
+                }
                 0x2e => {
                     self.exec_mid_instruction_steps(1);
-                    let data = self.get_hl_address_data();
-                    let result = (data >> 1) | (data & 0x80);
-                    let to_carry = data & 0x01;
-                    self.emu.registers.set_flag(Flags::Z, result == 0);
-                    self.emu.registers.set_flag(Flags::N, false);
-                    self.emu.registers.set_flag(Flags::H, false);
-                    self.emu.registers.set_flag(Flags::C, to_carry == 1);
+                    let hl = self.get_hl_address_data();
+                    let result = sra_n(hl, &mut self.emu.registers);
                     self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(result);
                     4
                 }
-                0x2f => self.sra_n(Reg::A),
-                0x30 => self.swap_n(Reg::B),
-                0x31 => self.swap_n(Reg::C),
-                0x32 => self.swap_n(Reg::D),
-                0x33 => self.swap_n(Reg::E),
-                0x34 => self.swap_n(Reg::H),
-                0x35 => self.swap_n(Reg::L),
+                0x2f => {
+                    self.emu.registers.a = sra_n(self.emu.registers.a, &mut self.emu.registers);
+                    2
+                }
+                0x30 => {
+                    self.emu.registers.b = swap_n(self.emu.registers.b, &mut self.emu.registers);
+                    2
+                }
+                0x31 => {
+                    self.emu.registers.c = swap_n(self.emu.registers.c, &mut self.emu.registers);
+                    2
+                }
+                0x32 => {
+                    self.emu.registers.d = swap_n(self.emu.registers.d, &mut self.emu.registers);
+                    2
+                }
+                0x33 => {
+                    self.emu.registers.e = swap_n(self.emu.registers.e, &mut self.emu.registers);
+                    2
+                }
+                0x34 => {
+                    self.emu.registers.h = swap_n(self.emu.registers.h, &mut self.emu.registers);
+                    2
+                }
+                0x35 => {
+                    self.emu.registers.l = swap_n(self.emu.registers.l, &mut self.emu.registers);
+                    2
+                }
                 0x36 => {
                     self.exec_mid_instruction_steps(1);
-                    let data = self.get_hl_address_data();
-                    let result = swap_nibbles(data);
-                    self.emu.registers.set_flag(Flags::Z, result == 0);
-                    self.emu.registers.set_flag(Flags::N, false);
-                    self.emu.registers.set_flag(Flags::C, false);
-                    self.emu.registers.set_flag(Flags::H, false);
+                    let result = swap_n(self.get_hl_address_data(), &mut self.emu.registers);
                     self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(result);
                     4
                 }
-                0x37 => self.swap_n(Reg::A),
-                0x38 => self.srl_n(Reg::B),
-                0x39 => self.srl_n(Reg::C),
-                0x3a => self.srl_n(Reg::D),
-                0x3b => self.srl_n(Reg::E),
-                0x3c => self.srl_n(Reg::H),
-                0x3d => self.srl_n(Reg::L),
+                0x37 => {
+                    self.emu.registers.a = swap_n(self.emu.registers.a, &mut self.emu.registers);
+                    2
+                }
+                0x38 => {
+                    self.emu.registers.b = srl_n(self.emu.registers.b, &mut self.emu.registers);
+                    2
+                }
+                0x39 => {
+                    self.emu.registers.c = srl_n(self.emu.registers.c, &mut self.emu.registers);
+                    2
+                }
+                0x3a => {
+                    self.emu.registers.d = srl_n(self.emu.registers.d, &mut self.emu.registers);
+                    2
+                }
+                0x3b => {
+                    self.emu.registers.e = srl_n(self.emu.registers.e, &mut self.emu.registers);
+                    2
+                }
+                0x3c => {
+                    self.emu.registers.h = srl_n(self.emu.registers.h, &mut self.emu.registers);
+                    2
+                }
+                0x3d => {
+                    self.emu.registers.l = srl_n(self.emu.registers.l, &mut self.emu.registers);
+                    2
+                }
                 0x3e => {
                     self.exec_mid_instruction_steps(1);
-                    let data = self.get_hl_address_data();
-                    let result = data >> 1;
-                    let to_carry = data & 0x01;
-                    self.emu.registers.set_flag(Flags::Z, result == 0);
-                    self.emu.registers.set_flag(Flags::N, false);
-                    self.emu.registers.set_flag(Flags::H, false);
-                    self.emu.registers.set_flag(Flags::C, to_carry == 1);
+                    let hl = self.get_hl_address_data();
+                    let result = srl_n(hl, &mut self.emu.registers);
                     self.exec_mid_instruction_steps(1);
                     self.write_in_hl_address(result);
                     4
                 }
-                0x3f => self.srl_n(Reg::A),
+                0x3f => {
+                    self.emu.registers.a = srl_n(self.emu.registers.a, &mut self.emu.registers);
+                    2
+                }
                 0x40 => self.bit_b_r(self.emu.registers.b, 0),
                 0x41 => self.bit_b_r(self.emu.registers.c, 0),
                 0x42 => self.bit_b_r(self.emu.registers.d, 0),
@@ -982,11 +822,17 @@ impl<'a> Cpu<'a> {
             0x01 => self.ld_n_nn(Reg::BC),
             0x02 => self.ld_n_a(Reg::BC),
             0x03 => self.inc_nn(Reg::BC),
-            0x04 => self.inc_n(Reg::B),
-            0x05 => self.dec_n(Reg::B),
+            0x04 => {
+                self.emu.registers.b = inc_n(self.emu.registers.b, &mut self.emu.registers);
+                1
+            }
+            0x05 => {
+                self.emu.registers.b = dec_n(self.emu.registers.b, &mut self.emu.registers);
+                1
+            }
             0x06 => self.ld_nn_n(Reg::B),
             0x07 => {
-                self.rlc_n(Reg::A);
+                self.emu.registers.a = rlc_n(self.emu.registers.a, &mut self.emu.registers);
                 self.emu.registers.set_flag(Flags::Z, false);
                 1
             }
@@ -996,14 +842,28 @@ impl<'a> Cpu<'a> {
                 self.emu.memory.write_word(address, stack_pointer);
                 5
             }
-            0x09 => self.add_hl_n(Reg::BC),
+            0x09 => {
+                let result = add_hl_n(
+                    self.emu.registers.get_hl(),
+                    self.emu.registers.get_bc(),
+                    &mut self.emu.registers,
+                );
+                self.emu.registers.set_hl(result);
+                2
+            }
             0x0a => self.ld_a_n(Reg::BC),
             0x0b => self.dec_nn(Reg::BC),
-            0x0c => self.inc_n(Reg::C),
-            0x0d => self.dec_n(Reg::C),
+            0x0c => {
+                self.emu.registers.c = inc_n(self.emu.registers.c, &mut self.emu.registers);
+                1
+            }
+            0x0d => {
+                self.emu.registers.c = dec_n(self.emu.registers.c, &mut self.emu.registers);
+                1
+            }
             0x0e => self.ld_nn_n(Reg::C),
             0x0f => {
-                self.rrc_n(Reg::A);
+                self.emu.registers.a = rrc_n(self.emu.registers.a, &mut self.emu.registers);
                 self.emu.registers.set_flag(Flags::Z, false);
                 1
             }
@@ -1011,29 +871,56 @@ impl<'a> Cpu<'a> {
             0x11 => self.ld_n_nn(Reg::DE),
             0x12 => self.ld_n_a(Reg::DE),
             0x13 => self.inc_nn(Reg::DE),
-            0x14 => self.inc_n(Reg::D),
-            0x15 => self.dec_n(Reg::D),
+            0x14 => {
+                self.emu.registers.d = inc_n(self.emu.registers.d, &mut self.emu.registers);
+                1
+            }
+            0x15 => {
+                self.emu.registers.d = dec_n(self.emu.registers.d, &mut self.emu.registers);
+                1
+            }
             0x16 => self.ld_nn_n(Reg::D),
             0x17 => {
-                self.rl_n(Reg::A);
+                self.emu.registers.a = rl_n(self.emu.registers.a, &mut self.emu.registers);
                 self.emu.registers.set_flag(Flags::Z, false);
                 1
             }
-            0x18 => self.jr_cc_n(true),
-            0x19 => self.add_hl_n(Reg::DE),
+            0x18 => {
+                jr_cc_n(true, &mut self.emu.memory);
+                3
+            }
+            0x19 => {
+                let result = add_hl_n(
+                    self.emu.registers.get_hl(),
+                    self.emu.registers.get_de(),
+                    &mut self.emu.registers,
+                );
+                self.emu.registers.set_hl(result);
+                2
+            }
             0x1a => self.ld_a_n(Reg::DE),
             0x1b => self.dec_nn(Reg::DE),
-            0x1c => self.inc_n(Reg::E),
-            0x1d => self.dec_n(Reg::E),
+            0x1c => {
+                self.emu.registers.e = inc_n(self.emu.registers.e, &mut self.emu.registers);
+                1
+            }
+            0x1d => {
+                self.emu.registers.e = dec_n(self.emu.registers.e, &mut self.emu.registers);
+                1
+            }
             0x1e => self.ld_nn_n(Reg::E),
             0x1f => {
-                self.rr_n(Reg::A);
+                self.emu.registers.a = rr_n(self.emu.registers.a, &mut self.emu.registers);
                 self.emu.registers.set_flag(Flags::Z, false);
                 1
             }
             0x20 => {
                 let z = self.emu.registers.get_flag(Flags::Z);
-                self.jr_cc_n(z == 0)
+                if jr_cc_n(z == 0, &mut self.emu.memory) {
+                    3
+                } else {
+                    2
+                }
             }
             0x21 => self.ld_n_nn(Reg::HL),
             0x22 => {
@@ -1044,15 +931,33 @@ impl<'a> Cpu<'a> {
                 2
             }
             0x23 => self.inc_nn(Reg::HL),
-            0x24 => self.inc_n(Reg::H),
-            0x25 => self.dec_n(Reg::H),
+            0x24 => {
+                self.emu.registers.h = inc_n(self.emu.registers.h, &mut self.emu.registers);
+                1
+            }
+            0x25 => {
+                self.emu.registers.h = dec_n(self.emu.registers.h, &mut self.emu.registers);
+                1
+            }
             0x26 => self.ld_nn_n(Reg::H),
             0x27 => self.daa(),
             0x28 => {
                 let z = self.emu.registers.get_flag(Flags::Z);
-                self.jr_cc_n(z == 1)
+                if jr_cc_n(z == 1, &mut self.emu.memory) {
+                    3
+                } else {
+                    2
+                }
             }
-            0x29 => self.add_hl_n(Reg::HL),
+            0x29 => {
+                let result = add_hl_n(
+                    self.emu.registers.get_hl(),
+                    self.emu.registers.get_hl(),
+                    &mut self.emu.registers,
+                );
+                self.emu.registers.set_hl(result);
+                2
+            }
             0x2a => {
                 let address = self.emu.registers.get_hl();
                 let data = self.emu.memory.read(address);
@@ -1061,8 +966,14 @@ impl<'a> Cpu<'a> {
                 2
             }
             0x2b => self.dec_nn(Reg::HL),
-            0x2c => self.inc_n(Reg::L),
-            0x2d => self.dec_n(Reg::L),
+            0x2c => {
+                self.emu.registers.l = inc_n(self.emu.registers.l, &mut self.emu.registers);
+                1
+            }
+            0x2d => {
+                self.emu.registers.l = dec_n(self.emu.registers.l, &mut self.emu.registers);
+                1
+            }
             0x2e => self.ld_nn_n(Reg::L),
             0x2f => {
                 let a = self.emu.registers.get_a();
@@ -1073,7 +984,11 @@ impl<'a> Cpu<'a> {
             }
             0x30 => {
                 let c = self.emu.registers.get_flag(Flags::C);
-                self.jr_cc_n(c == 0)
+                if jr_cc_n(c == 0, &mut self.emu.memory) {
+                    3
+                } else {
+                    2
+                }
             }
             0x31 => self.ld_n_nn(Reg::SP),
             0x32 => {
@@ -1128,9 +1043,21 @@ impl<'a> Cpu<'a> {
             }
             0x38 => {
                 let c = self.emu.registers.get_flag(Flags::C);
-                self.jr_cc_n(c == 1)
+                if jr_cc_n(c == 1, &mut self.emu.memory) {
+                    3
+                } else {
+                    2
+                }
             }
-            0x39 => self.add_hl_n(Reg::SP),
+            0x39 => {
+                let result = add_hl_n(
+                    self.emu.registers.get_hl(),
+                    self.emu.memory.get_stack_pointer(),
+                    &mut self.emu.registers,
+                );
+                self.emu.registers.set_hl(result);
+                2
+            }
             0x3a => {
                 let address = self.emu.registers.get_hl();
                 let data = self.emu.memory.read(address);
@@ -1142,8 +1069,14 @@ impl<'a> Cpu<'a> {
                 self.emu.memory.decrement_stack_pointer(1);
                 2
             }
-            0x3c => self.inc_n(Reg::A),
-            0x3d => self.dec_n(Reg::A),
+            0x3c => {
+                self.emu.registers.a = inc_n(self.emu.registers.a, &mut self.emu.registers);
+                1
+            }
+            0x3d => {
+                self.emu.registers.a = dec_n(self.emu.registers.a, &mut self.emu.registers);
+                1
+            }
             0x3e => {
                 let n = self.emu.memory.get_byte();
                 self.ld_r1_r2(Reg::A, n);
@@ -1349,173 +1282,621 @@ impl<'a> Cpu<'a> {
             }
             0x7e => self.ld_r1_hl(Reg::A),
             0x7f => 1,
-            0x80 => self.add_a_n(self.emu.registers.b),
-            0x81 => self.add_a_n(self.emu.registers.c),
-            0x82 => self.add_a_n(self.emu.registers.d),
-            0x83 => self.add_a_n(self.emu.registers.e),
-            0x84 => self.add_a_n(self.emu.registers.h),
-            0x85 => self.add_a_n(self.emu.registers.l),
+            0x80 => {
+                self.emu.registers.a = add_a_n(
+                    self.emu.registers.b,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0x81 => {
+                self.emu.registers.a = add_a_n(
+                    self.emu.registers.c,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0x82 => {
+                self.emu.registers.a = add_a_n(
+                    self.emu.registers.d,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0x83 => {
+                self.emu.registers.a = add_a_n(
+                    self.emu.registers.e,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0x84 => {
+                self.emu.registers.a = add_a_n(
+                    self.emu.registers.h,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0x85 => {
+                self.emu.registers.a = add_a_n(
+                    self.emu.registers.l,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
             0x86 => {
-                let data = self.get_hl_address_data();
-                self.add_a_n(data);
+                let hl = self.get_hl_address_data();
+                self.emu.registers.a = add_a_n(hl, self.emu.registers.a, &mut self.emu.registers);
                 2
             }
-            0x87 => self.add_a_n(self.emu.registers.a),
-            0x88 => self.addc_a_n(self.emu.registers.b),
-            0x89 => self.addc_a_n(self.emu.registers.c),
-            0x8a => self.addc_a_n(self.emu.registers.d),
-            0x8b => self.addc_a_n(self.emu.registers.e),
-            0x8c => self.addc_a_n(self.emu.registers.h),
-            0x8d => self.addc_a_n(self.emu.registers.l),
+            0x87 => {
+                self.emu.registers.a = add_a_n(
+                    self.emu.registers.a,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0x88 => {
+                self.emu.registers.a = addc_a_n(
+                    self.emu.registers.b,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0x89 => {
+                self.emu.registers.a = addc_a_n(
+                    self.emu.registers.c,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0x8a => {
+                self.emu.registers.a = addc_a_n(
+                    self.emu.registers.d,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0x8b => {
+                self.emu.registers.a = addc_a_n(
+                    self.emu.registers.e,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0x8c => {
+                self.emu.registers.a = addc_a_n(
+                    self.emu.registers.h,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0x8d => {
+                self.emu.registers.a = addc_a_n(
+                    self.emu.registers.l,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
             0x8e => {
-                let data = self.get_hl_address_data();
-                self.addc_a_n(data);
+                let hl = self.get_hl_address_data();
+                self.emu.registers.a = addc_a_n(hl, self.emu.registers.a, &mut self.emu.registers);
                 2
             }
-            0x8f => self.addc_a_n(self.emu.registers.a),
-            0x90 => self.sub_a_n(self.emu.registers.b),
-            0x91 => self.sub_a_n(self.emu.registers.c),
-            0x92 => self.sub_a_n(self.emu.registers.d),
-            0x93 => self.sub_a_n(self.emu.registers.e),
-            0x94 => self.sub_a_n(self.emu.registers.h),
-            0x95 => self.sub_a_n(self.emu.registers.l),
+            0x8f => {
+                self.emu.registers.a = addc_a_n(
+                    self.emu.registers.a,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0x90 => {
+                self.emu.registers.a = sub_a_n(
+                    self.emu.registers.b,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0x91 => {
+                self.emu.registers.a = sub_a_n(
+                    self.emu.registers.c,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0x92 => {
+                self.emu.registers.a = sub_a_n(
+                    self.emu.registers.d,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0x93 => {
+                self.emu.registers.a = sub_a_n(
+                    self.emu.registers.e,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0x94 => {
+                self.emu.registers.a = sub_a_n(
+                    self.emu.registers.h,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0x95 => {
+                self.emu.registers.a = sub_a_n(
+                    self.emu.registers.l,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
             0x96 => {
-                let data = self.get_hl_address_data();
-                self.sub_a_n(data);
+                let hl = self.get_hl_address_data();
+                self.emu.registers.a = sub_a_n(hl, self.emu.registers.a, &mut self.emu.registers);
                 2
             }
-            0x97 => self.sub_a_n(self.emu.registers.a),
-            0x98 => self.subc_a_n(self.emu.registers.b),
-            0x99 => self.subc_a_n(self.emu.registers.c),
-            0x9a => self.subc_a_n(self.emu.registers.d),
-            0x9b => self.subc_a_n(self.emu.registers.e),
-            0x9c => self.subc_a_n(self.emu.registers.h),
-            0x9d => self.subc_a_n(self.emu.registers.l),
+            0x97 => {
+                self.emu.registers.a = sub_a_n(
+                    self.emu.registers.a,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0x98 => {
+                self.emu.registers.a = subc_a_n(
+                    self.emu.registers.b,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0x99 => {
+                self.emu.registers.a = subc_a_n(
+                    self.emu.registers.c,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0x9a => {
+                self.emu.registers.a = subc_a_n(
+                    self.emu.registers.d,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0x9b => {
+                self.emu.registers.a = subc_a_n(
+                    self.emu.registers.e,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0x9c => {
+                self.emu.registers.a = subc_a_n(
+                    self.emu.registers.h,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0x9d => {
+                self.emu.registers.a = subc_a_n(
+                    self.emu.registers.l,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
             0x9e => {
-                let data = self.get_hl_address_data();
-                self.subc_a_n(data);
+                let hl = self.get_hl_address_data();
+                self.emu.registers.a = subc_a_n(hl, self.emu.registers.a, &mut self.emu.registers);
                 2
             }
-            0x9f => self.subc_a_n(self.emu.registers.a),
-            0xa0 => self.and_n(self.emu.registers.b),
-            0xa1 => self.and_n(self.emu.registers.c),
-            0xa2 => self.and_n(self.emu.registers.d),
-            0xa3 => self.and_n(self.emu.registers.e),
-            0xa4 => self.and_n(self.emu.registers.h),
-            0xa5 => self.and_n(self.emu.registers.l),
+            0x9f => {
+                self.emu.registers.a = subc_a_n(
+                    self.emu.registers.a,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xa0 => {
+                self.emu.registers.a = and_n(
+                    self.emu.registers.b,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xa1 => {
+                self.emu.registers.a = and_n(
+                    self.emu.registers.c,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xa2 => {
+                self.emu.registers.a = and_n(
+                    self.emu.registers.d,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xa3 => {
+                self.emu.registers.a = and_n(
+                    self.emu.registers.e,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xa4 => {
+                self.emu.registers.a = and_n(
+                    self.emu.registers.h,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xa5 => {
+                self.emu.registers.a = and_n(
+                    self.emu.registers.l,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
             0xa6 => {
-                let data = self.get_hl_address_data();
-                self.and_n(data);
+                let hl = self.get_hl_address_data();
+                self.emu.registers.a = and_n(hl, self.emu.registers.a, &mut self.emu.registers);
                 2
             }
-            0xa7 => self.and_n(self.emu.registers.a),
-            0xa8 => self.xor_n(self.emu.registers.b),
-            0xa9 => self.xor_n(self.emu.registers.c),
-            0xaa => self.xor_n(self.emu.registers.d),
-            0xab => self.xor_n(self.emu.registers.e),
-            0xac => self.xor_n(self.emu.registers.h),
-            0xad => self.xor_n(self.emu.registers.l),
+            0xa7 => {
+                self.emu.registers.a = and_n(
+                    self.emu.registers.a,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xa8 => {
+                self.emu.registers.a = xor_n(
+                    self.emu.registers.b,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xa9 => {
+                self.emu.registers.a = xor_n(
+                    self.emu.registers.c,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xaa => {
+                self.emu.registers.a = xor_n(
+                    self.emu.registers.d,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xab => {
+                self.emu.registers.a = xor_n(
+                    self.emu.registers.e,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xac => {
+                self.emu.registers.a = xor_n(
+                    self.emu.registers.h,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xad => {
+                self.emu.registers.a = xor_n(
+                    self.emu.registers.l,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
             0xae => {
-                let data = self.get_hl_address_data();
-                self.xor_n(data);
+                let hl = self.get_hl_address_data();
+                self.emu.registers.a = xor_n(hl, self.emu.registers.a, &mut self.emu.registers);
                 2
             }
-            0xaf => self.xor_n(self.emu.registers.a),
-            0xb0 => self.or_n(self.emu.registers.b),
-            0xb1 => self.or_n(self.emu.registers.c),
-            0xb2 => self.or_n(self.emu.registers.d),
-            0xb3 => self.or_n(self.emu.registers.e),
-            0xb4 => self.or_n(self.emu.registers.h),
-            0xb5 => self.or_n(self.emu.registers.l),
+            0xaf => {
+                self.emu.registers.a = xor_n(
+                    self.emu.registers.a,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xb0 => {
+                self.emu.registers.a = or_n(
+                    self.emu.registers.b,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xb1 => {
+                self.emu.registers.a = or_n(
+                    self.emu.registers.c,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xb2 => {
+                self.emu.registers.a = or_n(
+                    self.emu.registers.d,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xb3 => {
+                self.emu.registers.a = or_n(
+                    self.emu.registers.e,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xb4 => {
+                self.emu.registers.a = or_n(
+                    self.emu.registers.h,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xb5 => {
+                self.emu.registers.a = or_n(
+                    self.emu.registers.l,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
             0xb6 => {
-                let data = self.get_hl_address_data();
-                self.or_n(data);
+                let hl = self.get_hl_address_data();
+                self.emu.registers.a = or_n(hl, self.emu.registers.a, &mut self.emu.registers);
                 2
             }
-            0xb7 => self.or_n(self.emu.registers.a),
-            0xb8 => self.cp_n(self.emu.registers.b),
-            0xb9 => self.cp_n(self.emu.registers.c),
-            0xba => self.cp_n(self.emu.registers.d),
-            0xbb => self.cp_n(self.emu.registers.e),
-            0xbc => self.cp_n(self.emu.registers.h),
-            0xbd => self.cp_n(self.emu.registers.l),
+            0xb7 => {
+                self.emu.registers.a = or_n(
+                    self.emu.registers.a,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xb8 => {
+                cp_n(
+                    self.emu.registers.b,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xb9 => {
+                cp_n(
+                    self.emu.registers.c,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xba => {
+                cp_n(
+                    self.emu.registers.d,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xbb => {
+                cp_n(
+                    self.emu.registers.e,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xbc => {
+                cp_n(
+                    self.emu.registers.h,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
+            0xbd => {
+                cp_n(
+                    self.emu.registers.l,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
             0xbe => {
-                let data = self.get_hl_address_data();
-                self.cp_n(data);
+                let hl = self.get_hl_address_data();
+                cp_n(hl, self.emu.registers.a, &mut self.emu.registers);
                 2
             }
-            0xbf => self.cp_n(self.emu.registers.a),
+            0xbf => {
+                cp_n(
+                    self.emu.registers.a,
+                    self.emu.registers.a,
+                    &mut self.emu.registers,
+                );
+                1
+            }
             0xc0 => {
                 let z = self.emu.registers.get_flag(Flags::Z);
-                self.ret_cc(z == 0)
+                if ret_cc(z == 0, &mut self.emu.memory) {
+                    5
+                } else {
+                    2
+                }
             }
             0xc1 => self.pop_nn(Reg::BC),
             0xc2 => {
                 let z = self.emu.registers.get_flag(Flags::Z);
-                self.jp_cc_nn(z == 0)
+                if jp_cc_nn(z == 0, &mut self.emu.memory) {
+                    4
+                } else {
+                    3
+                }
             }
-            0xc3 => self.jp_cc_nn(true),
+            0xc3 => {
+                jp_cc_nn(true, &mut self.emu.memory);
+                4
+            }
             0xc4 => {
                 let z = self.emu.registers.get_flag(Flags::Z);
-                self.call_cc_nn(z == 0)
+                if call_cc_nn(z == 0, &mut self.emu.memory) {
+                    6
+                } else {
+                    3
+                }
             }
             0xc5 => self.push_nn(Reg::BC),
             0xc6 => {
                 let n = self.emu.memory.get_byte();
-                self.add_a_n(n);
+                self.emu.registers.a = add_a_n(n, self.emu.registers.a, &mut self.emu.registers);
                 2
             }
-            0xc7 => self.rst_n(0x0000),
+            0xc7 => {
+                rst_n(0x0000, &mut self.emu.memory);
+                4
+            }
             0xc8 => {
                 let z = self.emu.registers.get_flag(Flags::Z);
-                self.ret_cc(z == 1)
+                if ret_cc(z == 1, &mut self.emu.memory) {
+                    5
+                } else {
+                    2
+                }
             }
             0xc9 => {
-                self.ret_cc(true);
+                ret_cc(true, &mut self.emu.memory);
                 4
             }
             0xca => {
                 let z = self.emu.registers.get_flag(Flags::Z);
-                self.jp_cc_nn(z == 1)
+                if jp_cc_nn(z == 1, &mut self.emu.memory) {
+                    4
+                } else {
+                    3
+                }
             }
             0xcb => {
-                self.cb();
+                let address = self.emu.memory.get_byte();
+                self.execute_opcode(address, true);
                 return;
             }
             0xcc => {
                 let z = self.emu.registers.get_flag(Flags::Z);
-                self.call_cc_nn(z == 1)
+                if call_cc_nn(z == 1, &mut self.emu.memory) {
+                    6
+                } else {
+                    3
+                }
             }
-            0xcd => self.call_cc_nn(true),
+            0xcd => {
+                call_cc_nn(true, &mut self.emu.memory);
+                6
+            }
             0xce => {
                 let n = self.emu.memory.get_byte();
-                self.addc_a_n(n);
+                self.emu.registers.a = addc_a_n(n, self.emu.registers.a, &mut self.emu.registers);
                 2
             }
-            0xcf => self.rst_n(0x0008),
+            0xcf => {
+                rst_n(0x0008, &mut self.emu.memory);
+                4
+            }
             0xd0 => {
                 let c = self.emu.registers.get_flag(Flags::C);
-                self.ret_cc(c == 0)
+                if ret_cc(c == 0, &mut self.emu.memory) {
+                    5
+                } else {
+                    2
+                }
             }
             0xd1 => self.pop_nn(Reg::DE),
             0xd2 => {
                 let c = self.emu.registers.get_flag(Flags::C);
-                self.jp_cc_nn(c == 0)
+                if jp_cc_nn(c == 0, &mut self.emu.memory) {
+                    4
+                } else {
+                    3
+                }
             }
             0xd4 => {
                 let c = self.emu.registers.get_flag(Flags::C);
-                self.call_cc_nn(c == 0)
+                if call_cc_nn(c == 0, &mut self.emu.memory) {
+                    6
+                } else {
+                    3
+                }
             }
             0xd5 => self.push_nn(Reg::DE),
             0xd6 => {
                 let n = self.emu.memory.get_byte();
-                self.sub_a_n(n);
+                self.emu.registers.a = sub_a_n(n, self.emu.registers.a, &mut self.emu.registers);
                 2
             }
-            0xd7 => self.rst_n(0x0010),
+            0xd7 => {
+                rst_n(0x0010, &mut self.emu.memory);
+                4
+            }
             0xd8 => {
                 let c = self.emu.registers.get_flag(Flags::C);
-                self.ret_cc(c == 1)
+                if ret_cc(c == 1, &mut self.emu.memory) {
+                    5
+                } else {
+                    2
+                }
             }
             0xd9 => {
                 let address = self.emu.memory.pop_from_stack();
@@ -1525,18 +1906,29 @@ impl<'a> Cpu<'a> {
             }
             0xda => {
                 let c = self.emu.registers.get_flag(Flags::C);
-                self.jp_cc_nn(c == 1)
+                if jp_cc_nn(c == 1, &mut self.emu.memory) {
+                    4
+                } else {
+                    3
+                }
             }
             0xdc => {
                 let c = self.emu.registers.get_flag(Flags::C);
-                self.call_cc_nn(c == 1)
+                if call_cc_nn(c == 1, &mut self.emu.memory) {
+                    6
+                } else {
+                    3
+                }
             }
             0xde => {
                 let n = self.emu.memory.get_byte();
-                self.subc_a_n(n);
+                self.emu.registers.a = subc_a_n(n, self.emu.registers.a, &mut self.emu.registers);
                 2
             }
-            0xdf => self.rst_n(0x0018),
+            0xdf => {
+                rst_n(0x0018, &mut self.emu.memory);
+                4
+            }
             0xe0 => {
                 let address = 0xff00 | self.emu.memory.get_byte() as u16;
                 let a = self.emu.registers.get_a();
@@ -1554,10 +1946,13 @@ impl<'a> Cpu<'a> {
             0xe5 => self.push_nn(Reg::HL),
             0xe6 => {
                 let n = self.emu.memory.get_byte();
-                self.and_n(n);
+                self.emu.registers.a = and_n(n, self.emu.registers.a, &mut self.emu.registers);
                 2
             }
-            0xe7 => self.rst_n(0x0020),
+            0xe7 => {
+                rst_n(0x0020, &mut self.emu.memory);
+                4
+            }
             0xe8 => {
                 let data = self.emu.memory.get_byte() as i8 as u16;
                 let address = self.emu.memory.get_stack_pointer();
@@ -1586,10 +1981,13 @@ impl<'a> Cpu<'a> {
             }
             0xee => {
                 let n = self.emu.memory.get_byte();
-                self.xor_n(n);
+                self.emu.registers.a = xor_n(n, self.emu.registers.a, &mut self.emu.registers);
                 2
             }
-            0xef => self.rst_n(0x0028),
+            0xef => {
+                rst_n(0x0028, &mut self.emu.memory);
+                4
+            }
             0xf0 => {
                 self.exec_mid_instruction_steps(1);
                 let address = 0xff00 | self.emu.memory.get_byte() as u16;
@@ -1607,10 +2005,13 @@ impl<'a> Cpu<'a> {
             0xf5 => self.push_nn(Reg::AF),
             0xf6 => {
                 let n = self.emu.memory.get_byte();
-                self.or_n(n);
+                self.emu.registers.a = or_n(n, self.emu.registers.a, &mut self.emu.registers);
                 2
             }
-            0xf7 => self.rst_n(0x0030),
+            0xf7 => {
+                rst_n(0x0030, &mut self.emu.memory);
+                4
+            }
             0xf8 => {
                 let data = self.emu.memory.get_byte() as i8 as u16;
                 let address = self.emu.memory.get_stack_pointer();
@@ -1638,10 +2039,13 @@ impl<'a> Cpu<'a> {
             0xfb => self.ei(),
             0xfe => {
                 let n = self.emu.memory.get_byte();
-                self.cp_n(n);
+                cp_n(n, self.emu.registers.a, &mut self.emu.registers);
                 2
             }
-            0xff => self.rst_n(0x0038),
+            0xff => {
+                rst_n(0x0038, &mut self.emu.memory);
+                4
+            }
             0xd3 | 0xdb | 0xdd | 0xe3 | 0xe4 | 0xeb | 0xec | 0xed | 0xf4 | 0xfc | 0xfd => {
                 panic!("Unexisting code {:X}", opcode)
             }

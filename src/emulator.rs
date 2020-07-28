@@ -32,12 +32,12 @@ impl Emulator {
   }
 }
 
-pub fn next(mut emulator: &mut Emulator, run_next_instr: bool) {
+pub fn next(emulator: &mut Emulator, run_next_instr: bool) {
   if run_next_instr {
-    cpu::update(&mut emulator);
+    cpu::update(emulator);
   }
   let step = emulator.clock.next();
-  gpu::update(&mut emulator, step);
+  gpu::update(emulator, step);
   timers::update(&mut emulator.timers, &mut emulator.memory, step);
   interrupts::update(&mut emulator.timers, &mut emulator.memory);
 }
