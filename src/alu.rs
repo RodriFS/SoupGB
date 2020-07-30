@@ -215,12 +215,11 @@ pub fn srl_n(data: u8, reg: &mut Registers) -> u8 {
   result
 }
 
-pub fn bit_b_r(data: u8, bit: u8, reg: &mut Registers) -> u8 {
+pub fn bit_b_r(data: u8, bit: u8, reg: &mut Registers) {
   let result = data & (1 << bit);
   reg.set_flag(Flags::Z, result == 0);
   reg.set_flag(Flags::N, false);
   reg.set_flag(Flags::H, true);
-  2
 }
 
 pub fn set_b_r(data: u8, bit: u8) -> u8 {
@@ -231,7 +230,7 @@ pub fn res_b_r(data: u8, bit: u8) -> u8 {
   data & !(1 << bit)
 }
 
-pub fn daa(reg: &mut Registers) -> u8 {
+pub fn daa(reg: &mut Registers) {
   let mut carry = false;
   let a = reg.get_a();
   if reg.get_flag(Flags::N) == 0 {
@@ -254,5 +253,4 @@ pub fn daa(reg: &mut Registers) -> u8 {
   reg.set_flag(Flags::Z, a == 0);
   reg.set_flag(Flags::H, false);
   reg.set_flag(Flags::C, carry);
-  1
 }

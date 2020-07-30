@@ -1,24 +1,6 @@
 use super::utils::get_bit_at;
 use byteorder::{BigEndian, ByteOrder};
 
-#[derive(PartialEq)]
-pub enum Reg {
-  A,
-  B,
-  C,
-  D,
-  E,
-  H,
-  L,
-  AF,
-  BC,
-  DE,
-  HL,
-  N8,
-  N16,
-  SP,
-}
-
 pub enum Flags {
   Z,
   N,
@@ -73,54 +55,6 @@ impl Registers {
     } else {
       let new_value = self.get_f() & !(mask);
       self.set_f(new_value);
-    };
-  }
-
-  pub fn get_reg_u8(&mut self, reg: &Reg) -> u8 {
-    match reg {
-      Reg::A => self.get_a(),
-      Reg::B => self.get_b(),
-      Reg::C => self.get_c(),
-      Reg::D => self.get_d(),
-      Reg::E => self.get_e(),
-      Reg::H => self.get_h(),
-      Reg::L => self.get_l(),
-      _ => panic!("Unsupported fn get_reg_u8"),
-    }
-  }
-  pub fn set_reg_u8(&mut self, reg: &Reg, data: u8) {
-    match reg {
-      Reg::A => {
-        self.set_a(data);
-      }
-      Reg::B => {
-        self.set_b(data);
-      }
-      Reg::C => {
-        self.set_c(data);
-      }
-      Reg::D => {
-        self.set_d(data);
-      }
-      Reg::E => {
-        self.set_e(data);
-      }
-      Reg::H => {
-        self.set_h(data);
-      }
-      Reg::L => {
-        self.set_l(data);
-      }
-      _ => panic!("Unsupported fn set_reg_u8"),
-    };
-  }
-  pub fn set_reg_u16(&mut self, reg: &Reg, data: u16) {
-    match reg {
-      Reg::AF => self.set_af(data),
-      Reg::BC => self.set_bc(data),
-      Reg::DE => self.set_de(data),
-      Reg::HL => self.set_hl(data),
-      _ => panic!("Unsupported fn set_reg_u16"),
     };
   }
   pub fn get_af(&self) -> u16 {
@@ -210,14 +144,5 @@ impl Registers {
   }
   pub fn get_l(&self) -> u8 {
     self.l
-  }
-  pub fn get_reg_u16(&mut self, reg: &Reg) -> u16 {
-    match reg {
-      Reg::AF => self.get_af(),
-      Reg::BC => self.get_bc(),
-      Reg::DE => self.get_de(),
-      Reg::HL => self.get_hl(),
-      _ => panic!("Unsupported fn get_reg_u16"),
-    }
   }
 }
