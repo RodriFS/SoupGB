@@ -1,30 +1,49 @@
 use super::alu::*;
-use super::clock::Clock;
-use super::emulator::{next, Emulator};
-use super::memory::Memory;
-use super::registers::{Flags, Registers};
+use super::emulator::Emulator;
+use super::gpu;
+use super::interrupts;
+use super::registers::Flags;
+use super::timers;
 use super::utils::*;
 
-fn set_step(s: u8, clock: &mut Clock) {
-    clock.set_step(s as u32 * 4);
+fn set_step(s: u8, emu: &mut Emulator) {
+    (0..s).for_each(|_| {
+        take_cycle(emu);
+    })
 }
 
-fn exec_mid_instruction_steps(s: u8, emu: &mut Emulator) {
-    set_step(s, &mut emu.clock);
-    next(emu, false);
+fn exec_mid_instruction_steps(_s: u8, _emu: &mut Emulator) {
+    // next(emu, false);
 }
 
-fn get_hl_address_data(reg: &Registers, mem: &mut Memory) -> u8 {
-    let hl = reg.get_hl();
-    mem.read(hl)
+fn take_cycle(emu: &mut Emulator) {
+    gpu::update(emu, 4);
+    timers::update(&mut emu.timers, &mut emu.memory, 4);
+    interrupts::update(&mut emu.timers, &mut emu.memory);
 }
 
-fn write_in_hl_address(data: u8, reg: &Registers, mem: &mut Memory) {
-    let hl = reg.get_hl();
-    mem.write(hl, data)
+fn mem_read(emu: &mut Emulator, address: u16) -> u8 {
+    // take_cycle(emu);
+    emu.memory.read(address)
+}
+
+fn mem_write(emu: &mut Emulator, address: u16, data: u8) {
+    // take_cycle(emu);
+    emu.memory.write(address, data)
+}
+
+fn read_hl_mem_address(emu: &mut Emulator) -> u8 {
+    let hl = emu.registers.get_hl();
+    mem_read(emu, hl)
+}
+
+fn write_hl_mem_address(data: u8, emu: &mut Emulator) {
+    let hl = emu.registers.get_hl();
+    mem_write(emu, hl, data)
 }
 
 fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
+    // take_cycle(emu);
     if is_callback {
         let cb_timing = match opcode {
             0x00 => {
@@ -52,12 +71,12 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0x06 => {
-                exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 let data = rlc_n(hl, &mut emu.registers);
-                exec_mid_instruction_steps(1, emu);
                 let hl = emu.registers.get_hl();
-                emu.memory.write(hl, data);
+                exec_mid_instruction_steps(1, emu);
+                mem_write(emu, hl, data);
                 4
             }
             0x07 => {
@@ -89,11 +108,11 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0x0e => {
-                exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 let result = rrc_n(hl, &mut emu.registers);
                 exec_mid_instruction_steps(1, emu);
-                write_in_hl_address(result, &emu.registers, &mut emu.memory);
+                write_hl_mem_address(result, emu);
                 4
             }
             0x0f => {
@@ -125,11 +144,11 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0x16 => {
-                exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 let result = rl_n(hl, &mut emu.registers);
                 exec_mid_instruction_steps(1, emu);
-                write_in_hl_address(result, &emu.registers, &mut emu.memory);
+                write_hl_mem_address(result, emu);
                 4
             }
             0x17 => {
@@ -161,11 +180,11 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0x1e => {
-                exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 let result = rr_n(hl, &mut emu.registers);
                 exec_mid_instruction_steps(1, emu);
-                write_in_hl_address(result, &emu.registers, &mut emu.memory);
+                write_hl_mem_address(result, emu);
                 4
             }
             0x1f => {
@@ -197,11 +216,11 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0x26 => {
-                exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 let result = sla_n(hl, &mut emu.registers);
                 exec_mid_instruction_steps(1, emu);
-                write_in_hl_address(result, &emu.registers, &mut emu.memory);
+                write_hl_mem_address(result, emu);
                 4
             }
             0x27 => {
@@ -233,11 +252,11 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0x2e => {
-                exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 let result = sra_n(hl, &mut emu.registers);
                 exec_mid_instruction_steps(1, emu);
-                write_in_hl_address(result, &emu.registers, &mut emu.memory);
+                write_hl_mem_address(result, emu);
                 4
             }
             0x2f => {
@@ -269,13 +288,10 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0x36 => {
+                exec_mid_instruction_steps(2, emu);
+                let result = swap_n(read_hl_mem_address(emu), &mut emu.registers);
                 exec_mid_instruction_steps(1, emu);
-                let result = swap_n(
-                    get_hl_address_data(&emu.registers, &mut emu.memory),
-                    &mut emu.registers,
-                );
-                exec_mid_instruction_steps(1, emu);
-                write_in_hl_address(result, &emu.registers, &mut emu.memory);
+                write_hl_mem_address(result, emu);
                 4
             }
             0x37 => {
@@ -307,11 +323,11 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0x3e => {
-                exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 let result = srl_n(hl, &mut emu.registers);
                 exec_mid_instruction_steps(1, emu);
-                write_in_hl_address(result, &emu.registers, &mut emu.memory);
+                write_hl_mem_address(result, emu);
                 4
             }
             0x3f => {
@@ -343,8 +359,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0x46 => {
-                exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 bit_b_r(hl, 0, &mut emu.registers);
                 3
             }
@@ -377,8 +393,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0x4e => {
-                exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 bit_b_r(hl, 1, &mut emu.registers);
                 3
             }
@@ -411,8 +427,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0x56 => {
-                exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 bit_b_r(hl, 2, &mut emu.registers);
                 3
             }
@@ -445,8 +461,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0x5e => {
-                exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 bit_b_r(hl, 3, &mut emu.registers);
                 3
             }
@@ -479,8 +495,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0x66 => {
-                exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 bit_b_r(hl, 4, &mut emu.registers);
                 3
             }
@@ -513,8 +529,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0x6e => {
-                exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 bit_b_r(hl, 5, &mut emu.registers);
                 3
             }
@@ -547,8 +563,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0x76 => {
-                exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 bit_b_r(hl, 6, &mut emu.registers);
                 3
             }
@@ -581,8 +597,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0x7e => {
-                exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 bit_b_r(hl, 7, &mut emu.registers);
                 3
             }
@@ -615,10 +631,10 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0x86 => {
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
-                exec_mid_instruction_steps(1, emu);
-                write_in_hl_address(res_b_r(hl, 0), &emu.registers, &mut emu.memory);
+                write_hl_mem_address(res_b_r(hl, 0), emu);
                 4
             }
             0x87 => {
@@ -650,10 +666,10 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0x8e => {
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
-                exec_mid_instruction_steps(1, emu);
-                write_in_hl_address(res_b_r(hl, 1), &emu.registers, &mut emu.memory);
+                write_hl_mem_address(res_b_r(hl, 1), emu);
                 4
             }
             0x8f => {
@@ -685,10 +701,10 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0x96 => {
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
-                exec_mid_instruction_steps(1, emu);
-                write_in_hl_address(res_b_r(hl, 2), &emu.registers, &mut emu.memory);
+                write_hl_mem_address(res_b_r(hl, 2), emu);
                 4
             }
             0x97 => {
@@ -720,10 +736,10 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0x9e => {
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
-                exec_mid_instruction_steps(1, emu);
-                write_in_hl_address(res_b_r(hl, 3), &emu.registers, &mut emu.memory);
+                write_hl_mem_address(res_b_r(hl, 3), emu);
                 4
             }
             0x9f => {
@@ -755,10 +771,10 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0xa6 => {
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
-                exec_mid_instruction_steps(1, emu);
-                write_in_hl_address(res_b_r(hl, 4), &emu.registers, &mut emu.memory);
+                write_hl_mem_address(res_b_r(hl, 4), emu);
                 4
             }
             0xa7 => {
@@ -790,10 +806,10 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0xae => {
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
-                exec_mid_instruction_steps(1, emu);
-                write_in_hl_address(res_b_r(hl, 5), &emu.registers, &mut emu.memory);
+                write_hl_mem_address(res_b_r(hl, 5), emu);
                 4
             }
             0xaf => {
@@ -825,10 +841,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0xb6 => {
-                exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
-                exec_mid_instruction_steps(1, emu);
-                write_in_hl_address(res_b_r(hl, 6), &emu.registers, &mut emu.memory);
+                let hl = read_hl_mem_address(emu);
+                write_hl_mem_address(res_b_r(hl, 6), emu);
                 4
             }
             0xb7 => {
@@ -860,10 +874,10 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0xbe => {
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
-                exec_mid_instruction_steps(1, emu);
-                write_in_hl_address(res_b_r(hl, 7), &emu.registers, &mut emu.memory);
+                write_hl_mem_address(res_b_r(hl, 7), emu);
                 4
             }
             0xbf => {
@@ -895,10 +909,10 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0xc6 => {
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
-                exec_mid_instruction_steps(1, emu);
-                write_in_hl_address(set_b_r(hl, 0), &emu.registers, &mut emu.memory);
+                write_hl_mem_address(set_b_r(hl, 0), emu);
                 4
             }
             0xc7 => {
@@ -930,10 +944,10 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0xce => {
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
-                exec_mid_instruction_steps(1, emu);
-                write_in_hl_address(set_b_r(hl, 1), &emu.registers, &mut emu.memory);
+                write_hl_mem_address(set_b_r(hl, 1), emu);
                 4
             }
             0xcf => {
@@ -965,10 +979,10 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0xd6 => {
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
-                exec_mid_instruction_steps(1, emu);
-                write_in_hl_address(set_b_r(hl, 2), &emu.registers, &mut emu.memory);
+                write_hl_mem_address(set_b_r(hl, 2), emu);
                 4
             }
             0xd7 => {
@@ -1000,10 +1014,10 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0xde => {
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
-                exec_mid_instruction_steps(1, emu);
-                write_in_hl_address(set_b_r(hl, 3), &emu.registers, &mut emu.memory);
+                write_hl_mem_address(set_b_r(hl, 3), emu);
                 4
             }
             0xdf => {
@@ -1035,10 +1049,10 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0xe6 => {
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
-                exec_mid_instruction_steps(1, emu);
-                write_in_hl_address(set_b_r(hl, 4), &emu.registers, &mut emu.memory);
+                write_hl_mem_address(set_b_r(hl, 4), emu);
                 4
             }
             0xe7 => {
@@ -1070,10 +1084,10 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0xee => {
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
-                exec_mid_instruction_steps(1, emu);
-                write_in_hl_address(set_b_r(hl, 5), &emu.registers, &mut emu.memory);
+                write_hl_mem_address(set_b_r(hl, 5), emu);
                 4
             }
             0xef => {
@@ -1105,10 +1119,10 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0xf6 => {
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
-                exec_mid_instruction_steps(1, emu);
-                write_in_hl_address(set_b_r(hl, 6), &emu.registers, &mut emu.memory);
+                write_hl_mem_address(set_b_r(hl, 6), emu);
                 4
             }
             0xf7 => {
@@ -1140,10 +1154,10 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
             0xfe => {
+                exec_mid_instruction_steps(2, emu);
+                let hl = read_hl_mem_address(emu);
                 exec_mid_instruction_steps(1, emu);
-                let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
-                exec_mid_instruction_steps(1, emu);
-                write_in_hl_address(set_b_r(hl, 7), &emu.registers, &mut emu.memory);
+                write_hl_mem_address(set_b_r(hl, 7), emu);
                 4
             }
             0xff => {
@@ -1151,16 +1165,17 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 2
             }
         };
-        return set_step(cb_timing, &mut emu.clock);
+        return set_step(cb_timing, emu);
     }
     let timing = match opcode {
         0x00 => 1,
         0x01 => {
             let data = emu.memory.get_word();
             emu.registers.set_bc(data);
-            2
+            3
         }
         0x02 => {
+            exec_mid_instruction_steps(4, emu);
             emu.memory
                 .write(emu.registers.get_bc(), emu.registers.get_a());
             2
@@ -1203,7 +1218,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             2
         }
         0x0a => {
-            let data = emu.memory.read(emu.registers.get_bc());
+            exec_mid_instruction_steps(1, emu);
+            let data = mem_read(emu, emu.registers.get_bc());
             emu.registers.set_a(data);
             2
         }
@@ -1229,13 +1245,14 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             emu.registers.set_flag(Flags::Z, false);
             1
         }
-        0x10 => 0,
+        0x10 => 1,
         0x11 => {
             let data = emu.memory.get_word();
             emu.registers.set_de(data);
-            2
+            3
         }
         0x12 => {
+            exec_mid_instruction_steps(1, emu);
             emu.memory
                 .write(emu.registers.get_de(), emu.registers.get_a());
             2
@@ -1276,7 +1293,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             2
         }
         0x1a => {
-            let data = emu.memory.read(emu.registers.get_de());
+            exec_mid_instruction_steps(1, emu);
+            let data = mem_read(emu, emu.registers.get_de());
             emu.registers.set_a(data);
             2
         }
@@ -1313,12 +1331,13 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         0x21 => {
             let data = emu.memory.get_word();
             emu.registers.set_hl(data);
-            2
+            3
         }
         0x22 => {
             let address = emu.registers.get_hl();
             let a = emu.registers.get_a();
-            emu.memory.write(address, a);
+            exec_mid_instruction_steps(1, emu);
+            mem_write(emu, address, a);
             emu.registers.set_hl(address.wrapping_add(1));
             2
         }
@@ -1361,8 +1380,9 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             2
         }
         0x2a => {
+            exec_mid_instruction_steps(1, emu);
             let address = emu.registers.get_hl();
-            let data = emu.memory.read(address);
+            let data = mem_read(emu, address);
             emu.registers.set_a(data);
             emu.registers.set_hl(address.wrapping_add(1));
             2
@@ -1402,12 +1422,13 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         0x31 => {
             let data = emu.memory.get_word();
             emu.memory.set_stack_pointer(data);
-            2
+            3
         }
         0x32 => {
+            exec_mid_instruction_steps(1, emu);
             let address = emu.registers.get_hl();
             let a = emu.registers.get_a();
-            emu.memory.write(address, a);
+            mem_write(emu, address, a);
             emu.registers.set_hl(address.wrapping_sub(1));
             2
         }
@@ -1416,33 +1437,35 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             2
         }
         0x34 => {
-            let data = get_hl_address_data(&emu.registers, &mut emu.memory);
+            exec_mid_instruction_steps(1, emu);
+            let data = read_hl_mem_address(emu);
             emu.registers
                 .set_flag(Flags::Z, test_flag_add(data, 1, Flags::Z));
             emu.registers.set_flag(Flags::N, false);
             emu.registers
                 .set_flag(Flags::H, test_flag_add(data, 1, Flags::H));
             exec_mid_instruction_steps(1, emu);
-            write_in_hl_address(data.wrapping_add(1), &emu.registers, &mut emu.memory);
+            write_hl_mem_address(data.wrapping_add(1), emu);
             3
         }
         0x35 => {
-            let data = get_hl_address_data(&emu.registers, &mut emu.memory);
+            exec_mid_instruction_steps(1, emu);
+            let data = read_hl_mem_address(emu);
             emu.registers
                 .set_flag(Flags::Z, test_flag_sub(data, 1, Flags::Z));
             emu.registers.set_flag(Flags::N, true);
             emu.registers
                 .set_flag(Flags::H, test_flag_sub(data, 1, Flags::H));
             exec_mid_instruction_steps(1, emu);
-            write_in_hl_address(data.wrapping_sub(1), &emu.registers, &mut emu.memory);
+            write_hl_mem_address(data.wrapping_sub(1), emu);
             3
         }
         0x36 => {
             let data = emu.memory.get_byte();
             let hl = emu.registers.get_hl();
-            exec_mid_instruction_steps(1, emu);
-            emu.memory.write(hl, data);
-            2
+            exec_mid_instruction_steps(2, emu);
+            mem_write(emu, hl, data);
+            3
         }
         0x37 => {
             emu.registers.set_flag(Flags::C, true);
@@ -1469,7 +1492,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         }
         0x3a => {
             let address = emu.registers.get_hl();
-            let data = emu.memory.read(address);
+            exec_mid_instruction_steps(1, emu);
+            let data = mem_read(emu, address);
             emu.registers.set_a(data);
             emu.registers.set_hl(address.wrapping_sub(1));
             2
@@ -1519,8 +1543,9 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             1
         }
         0x46 => {
+            exec_mid_instruction_steps(1, emu);
             let address = emu.registers.get_hl();
-            let hl = emu.memory.read(address);
+            let hl = mem_read(emu, address);
             emu.registers.b = hl;
             2
         }
@@ -1550,8 +1575,9 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             1
         }
         0x4e => {
+            exec_mid_instruction_steps(1, emu);
             let address = emu.registers.get_hl();
-            let hl = emu.memory.read(address);
+            let hl = mem_read(emu, address);
             emu.registers.c = hl;
             2
         }
@@ -1581,8 +1607,9 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             1
         }
         0x56 => {
+            exec_mid_instruction_steps(1, emu);
             let address = emu.registers.get_hl();
-            let hl = emu.memory.read(address);
+            let hl = mem_read(emu, address);
             emu.registers.d = hl;
             2
         }
@@ -1612,8 +1639,9 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             1
         }
         0x5e => {
+            exec_mid_instruction_steps(1, emu);
             let address = emu.registers.get_hl();
-            let hl = emu.memory.read(address);
+            let hl = mem_read(emu, address);
             emu.registers.e = hl;
             2
         }
@@ -1643,8 +1671,9 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             1
         }
         0x66 => {
+            exec_mid_instruction_steps(1, emu);
             let address = emu.registers.get_hl();
-            let hl = emu.memory.read(address);
+            let hl = mem_read(emu, address);
             emu.registers.h = hl;
             2
         }
@@ -1674,8 +1703,9 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         }
         0x6d => 1,
         0x6e => {
+            exec_mid_instruction_steps(1, emu);
             let address = emu.registers.get_hl();
-            let hl = emu.memory.read(address);
+            let hl = mem_read(emu, address);
             emu.registers.l = hl;
             2
         }
@@ -1686,47 +1716,56 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         0x70 => {
             let b = emu.registers.b;
             let hl = emu.registers.get_hl();
-            emu.memory.write(hl, b);
+            exec_mid_instruction_steps(1, emu);
+            mem_write(emu, hl, b);
             2
         }
         0x71 => {
             let c = emu.registers.c;
             let hl = emu.registers.get_hl();
-            emu.memory.write(hl, c);
+            exec_mid_instruction_steps(1, emu);
+            mem_write(emu, hl, c);
             2
         }
         0x72 => {
             let d = emu.registers.d;
             let hl = emu.registers.get_hl();
-            emu.memory.write(hl, d);
+            exec_mid_instruction_steps(1, emu);
+            mem_write(emu, hl, d);
             2
         }
         0x73 => {
             let e = emu.registers.e;
             let hl = emu.registers.get_hl();
-            emu.memory.write(hl, e);
+            exec_mid_instruction_steps(1, emu);
+            mem_write(emu, hl, e);
             2
         }
         0x74 => {
             let h = emu.registers.h;
             let hl = emu.registers.get_hl();
-            emu.memory.write(hl, h);
+            exec_mid_instruction_steps(1, emu);
+            mem_write(emu, hl, h);
             2
         }
         0x75 => {
             let l = emu.registers.l;
             let hl = emu.registers.get_hl();
-            emu.memory.write(hl, l);
+            exec_mid_instruction_steps(1, emu);
+            mem_write(emu, hl, l);
             2
         }
         0x76 => {
-            emu.timers.is_halted = true;
-            0
+            if !emu.timers.master_enabled {
+                emu.timers.is_halted = true;
+            }
+            1
         }
         0x77 => {
             let a = emu.registers.a;
             let hl = emu.registers.get_hl();
-            emu.memory.write(hl, a);
+            exec_mid_instruction_steps(1, emu);
+            mem_write(emu, hl, a);
             2
         }
         0x78 => {
@@ -1755,7 +1794,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         }
         0x7e => {
             let address = emu.registers.get_hl();
-            let hl = emu.memory.read(address);
+            exec_mid_instruction_steps(1, emu);
+            let hl = mem_read(emu, address);
             emu.registers.a = hl;
             2
         }
@@ -1785,7 +1825,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             1
         }
         0x86 => {
-            let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
+            exec_mid_instruction_steps(1, emu);
+            let hl = read_hl_mem_address(emu);
             emu.registers.a = add_a_n(hl, emu.registers.a, &mut emu.registers);
             2
         }
@@ -1818,7 +1859,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             1
         }
         0x8e => {
-            let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
+            exec_mid_instruction_steps(1, emu);
+            let hl = read_hl_mem_address(emu);
             emu.registers.a = addc_a_n(hl, emu.registers.a, &mut emu.registers);
             2
         }
@@ -1851,7 +1893,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             1
         }
         0x96 => {
-            let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
+            exec_mid_instruction_steps(1, emu);
+            let hl = read_hl_mem_address(emu);
             emu.registers.a = sub_a_n(hl, emu.registers.a, &mut emu.registers);
             2
         }
@@ -1884,7 +1927,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             1
         }
         0x9e => {
-            let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
+            exec_mid_instruction_steps(1, emu);
+            let hl = read_hl_mem_address(emu);
             emu.registers.a = subc_a_n(hl, emu.registers.a, &mut emu.registers);
             2
         }
@@ -1917,7 +1961,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             1
         }
         0xa6 => {
-            let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
+            exec_mid_instruction_steps(1, emu);
+            let hl = read_hl_mem_address(emu);
             emu.registers.a = and_n(hl, emu.registers.a, &mut emu.registers);
             2
         }
@@ -1950,7 +1995,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             1
         }
         0xae => {
-            let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
+            exec_mid_instruction_steps(1, emu);
+            let hl = read_hl_mem_address(emu);
             emu.registers.a = xor_n(hl, emu.registers.a, &mut emu.registers);
             2
         }
@@ -1983,7 +2029,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             1
         }
         0xb6 => {
-            let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
+            exec_mid_instruction_steps(1, emu);
+            let hl = read_hl_mem_address(emu);
             emu.registers.a = or_n(hl, emu.registers.a, &mut emu.registers);
             2
         }
@@ -2016,7 +2063,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             1
         }
         0xbe => {
-            let hl = get_hl_address_data(&emu.registers, &mut emu.memory);
+            exec_mid_instruction_steps(1, emu);
+            let hl = read_hl_mem_address(emu);
             cp_n(hl, emu.registers.a, &mut emu.registers);
             2
         }
@@ -2202,9 +2250,9 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         0xe0 => {
             let address = 0xff00 | emu.memory.get_byte() as u16;
             let a = emu.registers.get_a();
-            exec_mid_instruction_steps(1, emu);
-            emu.memory.write(address, a);
-            1
+            exec_mid_instruction_steps(2, emu);
+            mem_write(emu, address, a);
+            3
         }
         0xe1 => {
             let data = emu.memory.pop_from_stack();
@@ -2214,7 +2262,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         0xe2 => {
             let a = emu.registers.get_a();
             let c = emu.registers.get_c();
-            emu.memory.write(0xff00 | (c as u16), a);
+            exec_mid_instruction_steps(1, emu);
+            mem_write(emu, 0xff00 | (c as u16), a);
             2
         }
         0xe5 => {
@@ -2250,9 +2299,9 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             1
         }
         0xea => {
-            exec_mid_instruction_steps(2, emu);
+            exec_mid_instruction_steps(3, emu);
             let word = emu.memory.get_word();
-            emu.memory.write(word, emu.registers.get_a());
+            mem_write(emu, word, emu.registers.get_a());
             4
         }
         0xee => {
@@ -2265,10 +2314,9 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             4
         }
         0xf0 => {
-            exec_mid_instruction_steps(1, emu);
             let address = 0xff00 | emu.memory.get_byte() as u16;
-            emu.registers.set_a(emu.memory.read(address));
-            1
+            emu.registers.a = mem_read(emu, address);
+            3
         }
         0xf1 => {
             let data = emu.memory.pop_from_stack();
@@ -2277,7 +2325,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         }
         0xf2 => {
             let c = emu.registers.get_c();
-            let data = emu.memory.read(0xff00 | c as u16);
+            exec_mid_instruction_steps(1, emu);
+            let data = mem_read(emu, 0xff00 | c as u16);
             emu.registers.set_a(data);
             2
         }
@@ -2317,9 +2366,9 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             2
         }
         0xfa => {
-            exec_mid_instruction_steps(2, emu);
             let word = emu.memory.get_word();
-            let data = emu.memory.read(word);
+            exec_mid_instruction_steps(3, emu);
+            let data = mem_read(emu, word);
             emu.registers.set_a(data);
             4
         }
@@ -2340,7 +2389,7 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             panic!("Unexisting code {:X}", opcode)
         }
     };
-    set_step(timing, &mut emu.clock);
+    set_step(timing, emu);
 }
 
 pub fn update(emulator: &mut Emulator) {
@@ -2348,5 +2397,5 @@ pub fn update(emulator: &mut Emulator) {
         let opcode = emulator.memory.get_byte();
         return execute_opcode(emulator, opcode, false);
     }
-    emulator.clock.set_step(1);
+    set_step(1, emulator);
 }
