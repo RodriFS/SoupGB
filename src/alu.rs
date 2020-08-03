@@ -1,5 +1,4 @@
-use super::emulator::{take_cycle, Emulator};
-use super::memory::Memory;
+use super::emulator::Emulator;
 use super::registers::{Flags, Registers};
 use super::utils::*;
 
@@ -102,10 +101,16 @@ pub fn swap_n(data: u8, reg: &mut Registers) -> u8 {
   result
 }
 
-pub fn jr_cc_n(condition: bool, mem: &mut Memory) -> bool {
-  let address = mem.get_byte() as i8;
+pub fn jr_cc_n(condition: bool, emu: &mut Emulator) -> bool {
+  let address = emu.get_byte() as i8;
   if condition {
-    mem.set_program_counter(mem.get_program_counter().wrapping_add(address as u16));
+    emu.take_cycle();
+    emu.memory.set_program_counter(
+      emu
+        .memory
+        .get_program_counter()
+        .wrapping_add(address as u16),
+    );
     return true;
   }
   false
@@ -113,7 +118,7 @@ pub fn jr_cc_n(condition: bool, mem: &mut Memory) -> bool {
 
 pub fn ret_cc(condition: bool, emu: &mut Emulator) -> bool {
   if condition {
-    take_cycle(emu);
+    emu.take_cycle();
     let address = emu.pop_from_stack();
     emu.memory.set_program_counter(address);
     return true;
@@ -124,7 +129,7 @@ pub fn ret_cc(condition: bool, emu: &mut Emulator) -> bool {
 pub fn jp_cc_nn(condition: bool, emu: &mut Emulator) -> bool {
   let address = emu.get_word();
   if condition {
-    take_cycle(emu);
+    emu.take_cycle();
     emu.memory.set_program_counter(address);
     return true;
   }
@@ -134,7 +139,7 @@ pub fn jp_cc_nn(condition: bool, emu: &mut Emulator) -> bool {
 pub fn call_cc_nn(condition: bool, emu: &mut Emulator) -> bool {
   let address = emu.get_word();
   if condition {
-    take_cycle(emu);
+    emu.take_cycle();
     let next_pc = emu.memory.get_program_counter();
     emu.push_to_stack(next_pc);
     emu.memory.set_program_counter(address);
@@ -143,10 +148,10 @@ pub fn call_cc_nn(condition: bool, emu: &mut Emulator) -> bool {
   false
 }
 
-pub fn rst_n(new_address: u16, mem: &mut Memory) {
-  let current_address = mem.get_program_counter();
-  mem.push_to_stack(current_address);
-  mem.set_program_counter(new_address);
+pub fn rst_n(new_address: u16, emu: &mut Emulator) {
+  let current_address = emu.memory.get_program_counter();
+  emu.push_to_stack(current_address);
+  emu.memory.set_program_counter(new_address);
 }
 
 pub fn rlc_n(data: u8, reg: &mut Registers) -> u8 {
