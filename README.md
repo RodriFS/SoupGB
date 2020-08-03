@@ -5,11 +5,11 @@ Tests status:
 | Test           | Status |
 | -------------- | :----: |
 | cpu_instr      |   👍   |
-| instr_timing   |   ❌   |
+| instr_timing   |   👍   |
 | halt_bug       |   ❌   |
 | interrupt_time |   ❌   |
 | mem_timing     |   👍   |
-| mem_timing-2   |   ❌   |
+| mem_timing-2   |   👍   |
 | cgb_sound      |   ❌   |
 | dmg_sound      |   ❌   |
 | oam_bug        |   ❌   |
@@ -21,7 +21,7 @@ Tests status:
 | add_sp_e_timing                  |   ❌   |
 | bits/mem_oam                     |   👍   |
 | bits/reg_f                       |   👍   |
-| bits/unused_hwio-GS              |   ❌   |
+| bits/unused_hwio-GS              |   👍   |
 | call_cc_timing                   |   ❌   |
 | call_cc_timing2                  |   ❌   |
 | di_timing-GS                     |   ❌   |

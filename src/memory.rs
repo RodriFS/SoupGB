@@ -47,7 +47,7 @@ pub struct Memory {
     ram_size: u8,
     pub is_ram_enabled: bool,
     pub banking_mode: Bmode,
-    stack_pointer: u16,
+    pub stack_pointer: u16,
     program_counter: u16,
     pub input_clock_select: u32,
 }
@@ -234,7 +234,7 @@ impl Memory {
         self.read(TIMER_MODULO_ADDRESS)
     }
     pub fn get_tac(&self) -> u8 {
-        self.read(TIMER_CONTROL_ADDRESS)
+        self.read(TIMER_CONTROL_ADDRESS) & 0b0000_0111
     }
     pub fn get_is_clock_enabled(&self) -> bool {
         let timers = self.get_tac();
@@ -244,10 +244,6 @@ impl Memory {
     pub fn update_div(&mut self) {
         let divider_register = self.get_div().wrapping_add(1);
         self.set_div(divider_register);
-    }
-
-    pub fn get_clock_frequency(&self) -> u8 {
-        self.get_tac() & 0x3
     }
 
     pub fn set_clock_frequency(&mut self, bits: u8) {
@@ -590,6 +586,7 @@ impl Memory {
             0xe000..=0xfdff => {}
             0xfe00..=0xfe9f => self.write_oam(address, data),
             0xfea0..=0xfeff => {}
+            0xff00 | 0xff20 => self.write_io_ports(address, data | 0b1100_0000),
             0xff01 => {
                 self.write_io_ports(address, data);
                 self.write_io_ports(0xff02, 0x81);
@@ -598,26 +595,29 @@ impl Memory {
                 print!("{}", c);
                 let _ = out.flush();
             }
+            0xff02 => self.write_io_ports(address, data | 0b0111_1110),
             0xff04 => {
                 self.write_io_ports(0xff04, 0);
                 self.write_io_ports(0xff05, 0); // TO CHECK
             }
             0xff07 => {
                 self.set_clock_frequency(data & 0x3);
-                self.write_io_ports(address, data)
+                self.write_io_ports(address, data | 0b1111_1000)
             }
+            0xff0f => self.write_io_ports(address, data | 0b1110_0000),
+            0xff10 | 0xff41 => self.write_io_ports(address, data | 0b1000_0000),
+            0xff1a => self.write_io_ports(address, data | 0b0111_1111),
+            0xff1c => self.write_io_ports(address, data | 0b1001_1111),
+            0xff23 => self.write_io_ports(address, data | 0b0011_1111),
+            0xff26 => self.write_io_ports(address, data | 0b0111_0000),
             0xff44 => self.write_io_ports(address, 0),
             0xff46 => self.dma_transfer(data),
-            0xff00
-            | 0xff02
-            | 0xff03
-            | 0xff05
-            | 0xff06
-            | 0xff08..=0xff43
-            | 0xff45
-            | 0xff47..=0xff7f => self.write_io_ports(address, data),
+            0xff03 | 0xff08..=0xff0e | 0xff15 | 0xff1f | 0xff27..=0xff29 | 0xff4c..=0xff7f => {
+                self.write_io_ports(address, data | 0b1111_1111)
+            }
             0xff80..=0xfffe => self.write_hram(address, data),
             0xffff => self.ie_register = data,
+            _ => self.write_io_ports(address, data),
         }
     }
 }

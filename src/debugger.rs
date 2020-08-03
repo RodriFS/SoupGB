@@ -335,7 +335,7 @@ pub fn print_debug_memory_info(memory: &Memory) {
         println!("LCDC: {:02X}  STAT: {:02X}  LY: {}", lcdc, lcd_stat, ly);
     }
     if DEBUG_TIMERS {
-        let cf = memory.get_clock_frequency();
+        let cf = memory.get_tac();
         let te = memory.get_is_clock_enabled();
         let dr = memory.get_div();
         let tima = memory.get_tima();

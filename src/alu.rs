@@ -1,3 +1,4 @@
+use super::emulator::{take_cycle, Emulator};
 use super::memory::Memory;
 use super::registers::{Flags, Registers};
 use super::utils::*;
@@ -110,30 +111,33 @@ pub fn jr_cc_n(condition: bool, mem: &mut Memory) -> bool {
   false
 }
 
-pub fn ret_cc(condition: bool, mem: &mut Memory) -> bool {
+pub fn ret_cc(condition: bool, emu: &mut Emulator) -> bool {
   if condition {
-    let address = mem.pop_from_stack();
-    mem.set_program_counter(address);
+    take_cycle(emu);
+    let address = emu.pop_from_stack();
+    emu.memory.set_program_counter(address);
     return true;
   }
   false
 }
 
-pub fn jp_cc_nn(condition: bool, mem: &mut Memory) -> bool {
-  let address = mem.get_word();
+pub fn jp_cc_nn(condition: bool, emu: &mut Emulator) -> bool {
+  let address = emu.get_word();
   if condition {
-    mem.set_program_counter(address);
+    take_cycle(emu);
+    emu.memory.set_program_counter(address);
     return true;
   }
   false
 }
 
-pub fn call_cc_nn(condition: bool, mem: &mut Memory) -> bool {
-  let address = mem.get_word();
+pub fn call_cc_nn(condition: bool, emu: &mut Emulator) -> bool {
+  let address = emu.get_word();
   if condition {
-    let next_pc = mem.get_program_counter();
-    mem.push_to_stack(next_pc);
-    mem.set_program_counter(address);
+    take_cycle(emu);
+    let next_pc = emu.memory.get_program_counter();
+    emu.push_to_stack(next_pc);
+    emu.memory.set_program_counter(address);
     return true;
   }
   false
