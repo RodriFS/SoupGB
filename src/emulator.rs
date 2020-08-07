@@ -25,8 +25,8 @@ impl Emulator {
 
   pub fn take_cycle(&mut self) {
     gpu::update(self, 4);
-    timers::update(&mut self.timers, &mut self.memory, 4);
-    interrupts::update(&mut self.timers, &mut self.memory);
+    timers::update(self, 4);
+    interrupts::update(self);
   }
 
   pub fn load_rom(&mut self, buffer: Vec<u8>) {

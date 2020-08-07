@@ -1,5 +1,6 @@
 use gba::constants::*;
 use gba::cpu;
+use gba::debugger::{print_debug_memory_info, print_debug_registers_info};
 use gba::emulator::Emulator;
 use minifb::{Key, Scale, Window, WindowOptions};
 use std::fs::File;
@@ -27,6 +28,8 @@ pub fn main() {
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
     let buf_len = SCREEN_WIDTH * SCREEN_HEIGHT;
     while window.is_open() && !window.is_key_down(Key::Escape) {
+        print_debug_memory_info(&emulator.memory, &emulator.timers);
+        print_debug_registers_info(&emulator.registers);
         cpu::update(&mut emulator);
         if emulator.frame_buffer.len() == buf_len {
             match window.update_with_buffer(&emulator.frame_buffer, SCREEN_WIDTH, SCREEN_HEIGHT) {

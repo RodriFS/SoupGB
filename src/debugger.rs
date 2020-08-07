@@ -2,6 +2,7 @@ use super::constants::*;
 use super::memory::Memory;
 use super::registers::Flags;
 use super::registers::Registers;
+use super::timers::Timers;
 
 fn print_instruction(instruction: u8, code: u16) {
     match instruction {
@@ -304,7 +305,7 @@ pub fn print_debug_registers_info(registers: &Registers) {
     println!("Z: {}, N: {}, H: {}, C: {}", z, n, h, c);
 }
 
-pub fn print_debug_memory_info(memory: &Memory) {
+pub fn print_debug_memory_info(memory: &Memory, timers: &Timers) {
     if DEBUG_CPU {
         let opcode = memory.get_byte_debug();
         let n16 = memory.get_word_debug();
@@ -312,6 +313,12 @@ pub fn print_debug_memory_info(memory: &Memory) {
         let sp = memory.get_stack_pointer();
         println!("PC: {:04X}  SP: {:04X}", pc, sp);
         println!("00:{:04X}: | {:02X}{:04X}", pc, opcode, n16);
+        println!(
+            "IF: {:X}, IE: {:X}, IME: {}",
+            memory.read(0xff0f),
+            memory.read(0xffff),
+            timers.master_enabled
+        );
         print_instruction(opcode, n16.swap_bytes());
     }
     if DEBUG_MEMORY {

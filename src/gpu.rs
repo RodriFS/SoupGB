@@ -81,7 +81,7 @@ impl<'a> Gpu<'a> {
         hi_byte.zip(low_byte).map(|(hi, lo)| hi << 1 | lo).collect()
     }
 
-    fn get_tile_ids(&self, bg_mem: u16) -> (u16, u16) {
+    fn get_tile_ids(&mut self, bg_mem: u16) -> (u16, u16) {
         let tiledata_region = self.emu.memory.bg_tile_data_select();
         let data = self.emu.memory.read(bg_mem);
         let tile_id = match tiledata_region {
@@ -116,7 +116,7 @@ impl<'a> Gpu<'a> {
         get_bit_at(attributes, 6)
     }
 
-    fn get_sprites_palette(&self, attributes: u8) -> u8 {
+    fn get_sprites_palette(&mut self, attributes: u8) -> u8 {
         if get_bit_at(attributes, 4) {
             return self.emu.memory.read(0xff49);
         }

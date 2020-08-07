@@ -1,4 +1,4 @@
-use super::memory::Memory;
+use super::emulator::Emulator;
 use super::utils::set_bit_at;
 
 pub struct Timers {
@@ -33,41 +33,41 @@ impl Timers {
     }
 }
 
-fn request_interrupt(memory: &mut Memory, timers: &mut Timers, bit: u8) {
-    let interrupt_flags = memory.read(0xff0f);
+fn request_interrupt(emu: &mut Emulator, bit: u8) {
+    let interrupt_flags = emu.memory.read(0xff0f);
     let modified_flag = set_bit_at(interrupt_flags, bit);
-    memory.write(0xff0f, modified_flag);
-    timers.is_halted = false;
+    emu.memory.write(0xff0f, modified_flag);
+    emu.timers.is_halted = false;
 }
 
-fn update_tima(memory: &mut Memory, timers: &mut Timers) {
-    let (counter, overflow) = match memory.get_tima().checked_add(1) {
+fn update_tima(emu: &mut Emulator) {
+    let (counter, overflow) = match emu.memory.get_tima().checked_add(1) {
         Some(c) => (c, false),
-        None => (memory.get_tma(), true),
+        None => (emu.memory.get_tma(), true),
     };
 
     if overflow {
-        timers.reset_timer_counter();
-        request_interrupt(memory, timers, 2);
+        emu.timers.reset_timer_counter();
+        request_interrupt(emu, 2);
     }
-    memory.set_tima(counter);
+    emu.memory.set_tima(counter);
 }
 
-pub fn update(timers: &mut Timers, memory: &mut Memory, opcode_cycles: u32) {
-    timers.divider_counter += opcode_cycles;
-    while timers.divider_counter >= 64 {
-        timers.divider_counter -= 64;
-        memory.update_div();
+pub fn update(emu: &mut Emulator, opcode_cycles: u32) {
+    emu.timers.divider_counter += opcode_cycles;
+    while emu.timers.divider_counter >= 64 {
+        emu.timers.divider_counter -= 64;
+        emu.memory.update_div();
     }
 
-    if !memory.get_is_clock_enabled() {
+    if !emu.memory.get_is_clock_enabled() {
         return;
     }
 
-    timers.timer_counter += opcode_cycles;
-    let clock_freq = memory.input_clock_select;
-    while timers.timer_counter >= clock_freq {
-        timers.timer_counter -= clock_freq;
-        update_tima(memory, timers);
+    emu.timers.timer_counter += opcode_cycles;
+    let clock_freq = emu.memory.input_clock_select;
+    while emu.timers.timer_counter >= clock_freq {
+        emu.timers.timer_counter -= clock_freq;
+        update_tima(emu);
     }
 }

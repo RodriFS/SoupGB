@@ -422,6 +422,7 @@ impl Memory {
             0 => 0x40,
             1 => 0x48,
             2 => 0x50,
+            3 => 0x58,
             4 => 0x60,
             _ => return,
         };
@@ -611,7 +612,10 @@ impl Memory {
             0xff23 => self.write_io_ports(address, data | 0b0011_1111),
             0xff26 => self.write_io_ports(address, data | 0b0111_0000),
             0xff44 => self.write_io_ports(address, 0),
-            0xff46 => self.dma_transfer(data),
+            0xff46 => {
+                self.dma_transfer(data);
+                self.write_io_ports(address, data)
+            }
             0xff03 | 0xff08..=0xff0e | 0xff15 | 0xff1f | 0xff27..=0xff29 | 0xff4c..=0xff7f => {
                 self.write_io_ports(address, data | 0b1111_1111)
             }

@@ -26,13 +26,13 @@ Tests status:
 | call_cc_timing2                  |   ❌   |
 | di_timing-GS                     |   ❌   |
 | div_timing                       |   ❌   |
-| ei_sequence                      |   ❌   |
-| ei_timing                        |   ❌   |
+| ei_sequence                      |   👍   |
+| ei_timing                        |   👍   |
 | halt_ime0_ei                     |   👍   |
 | halt_ime0_nointr_timing          |   ❌   |
 | halt_ime1_timing                 |   👍   |
 | halt_ime1_timing2-GS             |   ❌   |
-| if_ie_registers-GS               |   ❌   |
+| if_ie_registers                  |   👍   |
 | instr/daa                        |   👍   |
 | interrupts/ie_push               |   ❌   |
 | intr_timing                      |   ❌   |
@@ -40,7 +40,7 @@ Tests status:
 | jp_timing                        |   ❌   |
 | ld_hl_sp_e_timing                |   ❌   |
 | oam_dma/basic                    |   👍   |
-| oam_dma/reg_read                 |   ❌   |
+| oam_dma/reg_read                 |   👍   |
 | oam_dma/sources-GS               |   ❌   |
 | oam_dma_restart                  |   ❌   |
 | oam_dma_start                    |   ❌   |
