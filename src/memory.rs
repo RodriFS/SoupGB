@@ -8,7 +8,7 @@ pub struct Point2D {
     pub y: u8,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum LcdMode {
     HBlank,
     VBlank,
@@ -50,6 +50,9 @@ pub struct Memory {
     pub stack_pointer: u16,
     program_counter: u16,
     pub input_clock_select: u32,
+    dma_copy_address: u16,
+    dma_copy_in_progress: bool,
+    dma_cursor: u16,
 }
 
 // General Initialization functions
@@ -101,6 +104,9 @@ impl Memory {
             stack_pointer: 0xfffe,
             program_counter: 0x100,
             input_clock_select: 1024,
+            dma_copy_address: 0,
+            dma_copy_in_progress: false,
+            dma_cursor: 0,
         }
     }
 }
@@ -399,10 +405,29 @@ impl Memory {
         self.read(0xff45)
     }
 
-    fn dma_transfer(&mut self, data: u8) {
-        let address = (data as u16) << 8;
-        for i in 0..0xA0 {
-            self.write(0xfe00 + i, self.read(address + i));
+    fn start_dma_transfer(&mut self, data: u8) {
+        self.dma_cursor = 0;
+        self.dma_copy_address = (data as u16) << 8;
+        self.dma_copy_in_progress = true;
+    }
+
+    pub fn dma_copy_byte(&mut self) {
+        if !self.dma_copy_in_progress {
+            return;
+        }
+        if self.dma_cursor == 0 {
+            // skip step
+            self.dma_cursor += 1;
+        } else if self.dma_cursor > 0xA1 {
+            self.dma_copy_in_progress = false;
+            self.dma_cursor = 0;
+            self.dma_copy_address = 0;
+        } else {
+            self.write(
+                0xfe00 + self.dma_cursor - 1,
+                self.read(self.dma_copy_address + self.dma_cursor - 1),
+            );
+            self.dma_cursor += 1;
         }
     }
 }
@@ -414,6 +439,10 @@ impl Memory {
         get_bit_at(lcd_status, bit)
     }
     pub fn interrupt_execution(&mut self, request: u8, interrupt: u8) {
+        // if interrupt & request == 0 {
+        //     self.set_program_counter(0);
+        //     return;
+        // }
         let clear_request = clear_bit_at(request, interrupt);
         self.write(0xff0f, clear_request);
         let pc = self.get_program_counter();
@@ -538,7 +567,13 @@ impl Memory {
                 self.read_rom(address, self.get_bank2_as_high())
             }
             0x4000..=0x7fff => self.read_rom(address, self.memory_bank),
-            0x8000..=0x9fff => self.read_vram(address),
+            0x8000..=0x9fff => {
+                let lcd_status = self.get_lcd_status();
+                if lcd_status != LcdMode::TransfToLCDDriver {
+                    return self.read_vram(address);
+                }
+                0xff
+            }
             0xa000..=0xbfff if !self.is_ram_enabled => 0xff,
             0xa000..=0xbfff if self.banking_mode == Bmode::ROM => self.read_ram(address, 0),
             0xa000..=0xbfff if self.banking_mode == Bmode::RAM => {
@@ -546,7 +581,16 @@ impl Memory {
             }
             0xc000..=0xdfff => self.read_wram(address),
             0xe000..=0xfdff => self.read_echo(address),
-            0xfe00..=0xfe9f => self.read_oam(address),
+            0xfe00..=0xfe9f => {
+                let lcd_status = self.get_lcd_status();
+                if self.dma_cursor == 0 // dma still accessible while skipping step
+                || lcd_status == LcdMode::HBlank
+                || lcd_status == LcdMode::VBlank
+                {
+                    return self.read_oam(address);
+                }
+                0xff
+            }
             0xfea0..=0xfeff => 0,
             0xff00..=0xff7f => self.read_io_ports(address),
             0xff80..=0xfffe => self.read_hram(address),
@@ -578,14 +622,24 @@ impl Memory {
     pub fn write(&mut self, address: u16, data: u8) {
         match address {
             0x0000..=0x7fff => self.handle_bank_type(address, data),
-            0x8000..=0x9FFF => self.write_vram(address, data),
+            0x8000..=0x9FFF => {
+                let lcd_status = self.get_lcd_status();
+                if lcd_status != LcdMode::TransfToLCDDriver {
+                    self.write_vram(address, data)
+                }
+            }
             0xa000..=0xbfff if self.is_ram_enabled => {
                 self.write_ram(address, self.get_bank2_as_low(), data)
             }
             0xa000..=0xbfff => {}
             0xc000..=0xdfff => self.write_wram(address, data),
             0xe000..=0xfdff => {}
-            0xfe00..=0xfe9f => self.write_oam(address, data),
+            0xfe00..=0xfe9f => {
+                let lcd_status = self.get_lcd_status();
+                if lcd_status == LcdMode::HBlank || lcd_status == LcdMode::VBlank {
+                    self.write_oam(address, data)
+                }
+            }
             0xfea0..=0xfeff => {}
             0xff00 | 0xff20 => self.write_io_ports(address, data | 0b1100_0000),
             0xff01 => {
@@ -613,7 +667,7 @@ impl Memory {
             0xff26 => self.write_io_ports(address, data | 0b0111_0000),
             0xff44 => self.write_io_ports(address, 0),
             0xff46 => {
-                self.dma_transfer(data);
+                self.start_dma_transfer(data);
                 self.write_io_ports(address, data)
             }
             0xff03 | 0xff08..=0xff0e | 0xff15 | 0xff1f | 0xff27..=0xff29 | 0xff4c..=0xff7f => {

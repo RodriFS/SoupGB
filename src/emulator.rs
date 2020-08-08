@@ -27,6 +27,7 @@ impl Emulator {
     gpu::update(self, 4);
     timers::update(self, 4);
     interrupts::update(self);
+    self.memory.dma_copy_byte();
   }
 
   pub fn load_rom(&mut self, buffer: Vec<u8>) {
