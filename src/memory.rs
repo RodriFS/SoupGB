@@ -603,6 +603,7 @@ impl Memory {
             MBC::ROM_ONLY if address > 0x8000 => {
                 panic!("Trying to write to address greater than 0x8000")
             }
+            MBC::ROM_ONLY => println!("address: {:X}, data: {:X}", address, data),
             MBC::MBC2 if get_bit_at(address.to_be_bytes()[1], 4) => {}
             MBC::MBC1 | MBC::MBC2 if address <= 0x1fff => match data & 0xf {
                 0b1010 => self.set_is_ram_enabled(true),
@@ -616,7 +617,41 @@ impl Memory {
                 0x1 => self.set_banking_mode(Bmode::RAM),
                 _ => panic!("Unsupported banking mode"),
             },
-            _ => panic!("MBC case not supported"),
+            _ => {
+                let bank_type = match self.cartridge_memory[0x147] {
+                    0x00 => "00h  ROM ONLY",
+                    0x01 => "01h  MBC1",
+                    0x02 => "02h  MBC1+RAM",
+                    0x03 => "03h  MBC1+RAM+BATTERY",
+                    0x05 => "05h  MBC2",
+                    0x06 => "06h  MBC2+BATTERY",
+                    0x08 => "08h  ROM+RAM",
+                    0x09 => "09h  ROM+RAM+BATTERY",
+                    0x0b => "0Bh  MMM01",
+                    0x0c => "0Ch  MMM01+RAM",
+                    0x0d => "0Dh  MMM01+RAM+BATTERY",
+                    0x0f => "0Fh  MBC3+TIMER+BATTERY",
+                    0x10 => "10h  MBC3+TIMER+RAM+BATTERY",
+                    0x11 => "11h  MBC3",
+                    0x12 => "12h  MBC3+RAM",
+                    0x13 => "13h  MBC3+RAM+BATTERY",
+                    0x15 => "15h  MBC4",
+                    0x16 => "16h  MBC4+RAM",
+                    0x17 => "17h  MBC4+RAM+BATTERY",
+                    0x19 => "19h  MBC5",
+                    0x1a => "1Ah  MBC5+RAM",
+                    0x1b => "1Bh  MBC5+RAM+BATTERY",
+                    0x1c => "1Ch  MBC5+RUMBLE",
+                    0x1d => "1Dh  MBC5+RUMBLE+RAM",
+                    0x1e => "1Eh  MBC5+RUMBLE+RAM+BATTERY",
+                    0xfc => "FCh  POCKET CAMERA",
+                    0xfd => "FDh  BANDAI TAMA5",
+                    0xfe => "FEh  HuC3",
+                    0xff => "FFh  HuC1+RAM+BATTERY",
+                    _ => "Unknown",
+                };
+                panic!("MBC case not supported {}", bank_type);
+            }
         };
     }
     pub fn write(&mut self, address: u16, data: u8) {

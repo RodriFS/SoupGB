@@ -1788,8 +1788,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         }
         0xc5 => {
             let address = emu.registers.get_bc();
+            emu.take_cycle();
             emu.push_to_stack(address);
-            emu.take_cycle()
         }
         0xc6 => {
             let n = emu.get_byte();
@@ -1849,8 +1849,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         }
         0xd5 => {
             let address = emu.registers.get_de();
+            emu.take_cycle();
             emu.push_to_stack(address);
-            emu.take_cycle()
         }
         0xd6 => {
             let n = emu.get_byte();
@@ -1903,8 +1903,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         }
         0xe5 => {
             let address = emu.registers.get_hl();
+            emu.take_cycle();
             emu.push_to_stack(address);
-            emu.take_cycle()
         }
         0xe6 => {
             let n = emu.get_byte();
@@ -1962,8 +1962,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         }
         0xf5 => {
             let address = emu.registers.get_af();
+            emu.take_cycle();
             emu.push_to_stack(address);
-            emu.take_cycle()
         }
         0xf6 => {
             let n = emu.get_byte();
