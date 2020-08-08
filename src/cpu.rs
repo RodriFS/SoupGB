@@ -1796,8 +1796,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             emu.registers.a = add_a_n(n, emu.registers.a, &mut emu.registers);
         }
         0xc7 => {
+            emu.take_cycle();
             rst_n(0x0000, emu);
-            emu.take_cycle()
         }
         0xc8 => {
             let z = emu.registers.get_flag(Flags::Z);
@@ -1827,8 +1827,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             emu.registers.a = addc_a_n(n, emu.registers.a, &mut emu.registers);
         }
         0xcf => {
+            emu.take_cycle();
             rst_n(0x0008, emu);
-            emu.take_cycle()
         }
         0xd0 => {
             let c = emu.registers.get_flag(Flags::C);
@@ -1857,8 +1857,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             emu.registers.a = sub_a_n(n, emu.registers.a, &mut emu.registers);
         }
         0xd7 => {
+            emu.take_cycle();
             rst_n(0x0010, emu);
-            emu.take_cycle()
         }
         0xd8 => {
             let c = emu.registers.get_flag(Flags::C);
@@ -1884,8 +1884,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             emu.registers.a = subc_a_n(n, emu.registers.a, &mut emu.registers);
         }
         0xdf => {
+            emu.take_cycle();
             rst_n(0x0018, emu);
-            emu.take_cycle()
         }
         0xe0 => {
             let address = 0xff00 | emu.get_byte() as u16;
@@ -1911,8 +1911,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             emu.registers.a = and_n(n, emu.registers.a, &mut emu.registers);
         }
         0xe7 => {
+            emu.take_cycle();
             rst_n(0x0020, emu);
-            emu.take_cycle()
         }
         0xe8 => {
             let data = emu.get_byte() as i8 as u16;
@@ -1941,8 +1941,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             emu.registers.a = xor_n(n, emu.registers.a, &mut emu.registers);
         }
         0xef => {
+            emu.take_cycle();
             rst_n(0x0028, emu);
-            emu.take_cycle()
         }
         0xf0 => {
             let address = 0xff00 | emu.get_byte() as u16;
@@ -1970,8 +1970,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             emu.registers.a = or_n(n, emu.registers.a, &mut emu.registers);
         }
         0xf7 => {
+            emu.take_cycle();
             rst_n(0x0030, emu);
-            emu.take_cycle()
         }
         0xf8 => {
             let data = emu.get_byte() as i8 as u16;
@@ -2003,8 +2003,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             cp_n(n, emu.registers.a, &mut emu.registers);
         }
         0xff => {
+            emu.take_cycle();
             rst_n(0x0038, emu);
-            emu.take_cycle()
         }
         0xd3 | 0xdb | 0xdd | 0xe3 | 0xe4 | 0xeb | 0xec | 0xed | 0xf4 | 0xfc | 0xfd => {
             panic!("Unexisting code {:X}", opcode)
