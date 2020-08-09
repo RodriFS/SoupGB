@@ -311,13 +311,20 @@ pub fn print_debug_memory_info(memory: &Memory, timers: &Timers) {
         let n16 = memory.get_word_debug();
         let pc = memory.get_program_counter();
         let sp = memory.get_stack_pointer();
-        println!("PC: {:04X}  SP: {:04X}", pc, sp);
+        println!("PC: {:04X}  SP: {:04X} -> {:X}", pc, sp, memory.read(sp));
         println!("00:{:04X}: | {:02X}{:04X}", pc, opcode, n16);
         println!(
-            "IF: {:X}, IE: {:X}, IME: {}",
+            "IF: {:X}|{:b}, IE: {:X}|{:b}, IME: {}",
+            memory.read(0xff0f),
             memory.read(0xff0f),
             memory.read(0xffff),
+            memory.read(0xffff),
             timers.master_enabled
+        );
+        println!(
+            "period: {:?} : {}",
+            memory.get_lcd_status(),
+            timers.scan_line_counter
         );
         print_instruction(opcode, n16.swap_bytes());
     }

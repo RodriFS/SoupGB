@@ -1796,7 +1796,6 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             emu.registers.a = add_a_n(n, emu.registers.a, &mut emu.registers);
         }
         0xc7 => {
-            emu.take_cycle();
             rst_n(0x0000, emu);
         }
         0xc8 => {
@@ -1827,7 +1826,6 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             emu.registers.a = addc_a_n(n, emu.registers.a, &mut emu.registers);
         }
         0xcf => {
-            emu.take_cycle();
             rst_n(0x0008, emu);
         }
         0xd0 => {
@@ -1857,7 +1855,6 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             emu.registers.a = sub_a_n(n, emu.registers.a, &mut emu.registers);
         }
         0xd7 => {
-            emu.take_cycle();
             rst_n(0x0010, emu);
         }
         0xd8 => {
@@ -1884,7 +1881,6 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             emu.registers.a = subc_a_n(n, emu.registers.a, &mut emu.registers);
         }
         0xdf => {
-            emu.take_cycle();
             rst_n(0x0018, emu);
         }
         0xe0 => {
@@ -1911,7 +1907,6 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             emu.registers.a = and_n(n, emu.registers.a, &mut emu.registers);
         }
         0xe7 => {
-            emu.take_cycle();
             rst_n(0x0020, emu);
         }
         0xe8 => {
@@ -1923,8 +1918,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 .set_flag(Flags::H, (address & 0x0f) + (data & 0x0f) > 0x0f);
             emu.registers
                 .set_flag(Flags::C, (address & 0xff) + (data & 0xff) > 0xff);
-            emu.memory
-                .set_stack_pointer(address.wrapping_add(data as u16));
+            let result = address.wrapping_add(data as u16);
+            emu.memory.set_stack_pointer(result);
             emu.take_cycle();
             emu.take_cycle();
         }
@@ -1941,7 +1936,6 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             emu.registers.a = xor_n(n, emu.registers.a, &mut emu.registers);
         }
         0xef => {
-            emu.take_cycle();
             rst_n(0x0028, emu);
         }
         0xf0 => {
@@ -1970,7 +1964,6 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             emu.registers.a = or_n(n, emu.registers.a, &mut emu.registers);
         }
         0xf7 => {
-            emu.take_cycle();
             rst_n(0x0030, emu);
         }
         0xf8 => {
@@ -2003,7 +1996,6 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             cp_n(n, emu.registers.a, &mut emu.registers);
         }
         0xff => {
-            emu.take_cycle();
             rst_n(0x0038, emu);
         }
         0xd3 | 0xdb | 0xdd | 0xe3 | 0xe4 | 0xeb | 0xec | 0xed | 0xf4 | 0xfc | 0xfd => {

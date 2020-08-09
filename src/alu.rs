@@ -104,13 +104,12 @@ pub fn swap_n(data: u8, reg: &mut Registers) -> u8 {
 pub fn jr_cc_n(condition: bool, emu: &mut Emulator) -> bool {
   let address = emu.get_byte() as i8;
   if condition {
+    let result = emu
+      .memory
+      .get_program_counter()
+      .wrapping_add(address as u16);
     emu.take_cycle();
-    emu.memory.set_program_counter(
-      emu
-        .memory
-        .get_program_counter()
-        .wrapping_add(address as u16),
-    );
+    emu.memory.set_program_counter(result);
     return true;
   }
   false
@@ -149,6 +148,7 @@ pub fn call_cc_nn(condition: bool, emu: &mut Emulator) -> bool {
 }
 
 pub fn rst_n(new_address: u16, emu: &mut Emulator) {
+  emu.take_cycle();
   let current_address = emu.memory.get_program_counter();
   emu.push_to_stack(current_address);
   emu.memory.set_program_counter(new_address);

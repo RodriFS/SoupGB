@@ -29,7 +29,7 @@
           "kind": "bin"
         }
       },
-      "args": ["test_rom/mooneye/acceptance/di_timing-GS.gb"],
+      "args": ["test_rom/Pomo.gb"],
       "cwd": "${workspaceFolder}"
     },
     {
