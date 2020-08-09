@@ -66,7 +66,7 @@ Tests status:
 | reti_timing                      |   ❌   |
 | rst_timing                       |   ❌   |
 | serial/boot_sclk_align-dmgABCmgb |   ❌   |
-| timer/div_write                  |   ❌   |
+| timer/div_write                  |   👍   |
 | timer/rapid_toggle               |   ❌   |
 | timer/tim00                      |   ❌   |
 | timer/tim00_div_trigger          |   ❌   |

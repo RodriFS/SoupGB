@@ -32,6 +32,7 @@ pub fn main() {
         print_debug_registers_info(&emulator.registers);
         cpu::update(&mut emulator);
         if emulator.frame_buffer.len() == buf_len {
+            // if emulator.memory.get_ly() == 143 && emulator.memory.get_lcd_status() == LcdMode::HBlank {
             match window.update_with_buffer(&emulator.frame_buffer, SCREEN_WIDTH, SCREEN_HEIGHT) {
                 Ok(_) => {}
                 Err(e) => {

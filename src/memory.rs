@@ -12,8 +12,8 @@ pub struct Point2D {
 pub enum LcdMode {
     HBlank,
     VBlank,
-    ReadingOAMRAM,
-    TransfToLCDDriver,
+    ReadOAM,
+    ReadVRAM,
 }
 
 #[allow(non_camel_case_types)]
@@ -82,7 +82,7 @@ impl Memory {
         io_ports[0x47] = 0xFC;
         io_ports[0x48] = 0xFF;
         io_ports[0x49] = 0xFF;
-        io_ports[0x41] = 0x84;
+        io_ports[0x41] = 0x85;
 
         Self {
             wram: [0; 0x2000],
@@ -351,8 +351,8 @@ impl Memory {
         match lcd_status & 0x3 {
             0x0 => LcdMode::HBlank,
             0x1 => LcdMode::VBlank,
-            0x2 => LcdMode::ReadingOAMRAM,
-            0x3 => LcdMode::TransfToLCDDriver,
+            0x2 => LcdMode::ReadOAM,
+            0x3 => LcdMode::ReadVRAM,
             _ => panic!("Unreachable lcd status"),
         }
     }
@@ -368,11 +368,11 @@ impl Memory {
                 let temp_status = clear_bit_at(lcd_status, 1);
                 set_bit_at(temp_status, 0)
             }
-            LcdMode::ReadingOAMRAM => {
+            LcdMode::ReadOAM => {
                 let temp_status = set_bit_at(lcd_status, 1);
                 clear_bit_at(temp_status, 0)
             }
-            LcdMode::TransfToLCDDriver => {
+            LcdMode::ReadVRAM => {
                 let temp_status = set_bit_at(lcd_status, 1);
                 set_bit_at(temp_status, 0)
             }
@@ -567,13 +567,7 @@ impl Memory {
                 self.read_rom(address, self.get_bank2_as_high())
             }
             0x4000..=0x7fff => self.read_rom(address, self.memory_bank),
-            0x8000..=0x9fff => {
-                let lcd_status = self.get_lcd_status();
-                if lcd_status != LcdMode::TransfToLCDDriver {
-                    return self.read_vram(address);
-                }
-                0xff
-            }
+            0x8000..=0x9fff => self.read_vram(address),
             0xa000..=0xbfff if !self.is_ram_enabled => 0xff,
             0xa000..=0xbfff if self.banking_mode == Bmode::ROM => self.read_ram(address, 0),
             0xa000..=0xbfff if self.banking_mode == Bmode::RAM => {
@@ -581,16 +575,7 @@ impl Memory {
             }
             0xc000..=0xdfff => self.read_wram(address),
             0xe000..=0xfdff => self.read_echo(address),
-            0xfe00..=0xfe9f => {
-                let lcd_status = self.get_lcd_status();
-                if self.dma_cursor == 0 // dma still accessible while skipping step
-                || lcd_status == LcdMode::HBlank
-                || lcd_status == LcdMode::VBlank
-                {
-                    return self.read_oam(address);
-                }
-                0xff
-            }
+            0xfe00..=0xfe9f => self.read_oam(address),
             0xfea0..=0xfeff => 0,
             0xff00..=0xff7f => self.read_io_ports(address),
             0xff80..=0xfffe => self.read_hram(address),
@@ -657,24 +642,14 @@ impl Memory {
     pub fn write(&mut self, address: u16, data: u8) {
         match address {
             0x0000..=0x7fff => self.handle_bank_type(address, data),
-            0x8000..=0x9FFF => {
-                let lcd_status = self.get_lcd_status();
-                if lcd_status != LcdMode::TransfToLCDDriver {
-                    self.write_vram(address, data)
-                }
-            }
+            0x8000..=0x9FFF => self.write_vram(address, data),
             0xa000..=0xbfff if self.is_ram_enabled => {
                 self.write_ram(address, self.get_bank2_as_low(), data)
             }
             0xa000..=0xbfff => {}
             0xc000..=0xdfff => self.write_wram(address, data),
             0xe000..=0xfdff => {}
-            0xfe00..=0xfe9f => {
-                let lcd_status = self.get_lcd_status();
-                if lcd_status == LcdMode::HBlank || lcd_status == LcdMode::VBlank {
-                    self.write_oam(address, data)
-                }
-            }
+            0xfe00..=0xfe9f => self.write_oam(address, data),
             0xfea0..=0xfeff => {}
             0xff00 | 0xff20 => self.write_io_ports(address, data | 0b1100_0000),
             0xff01 => {
