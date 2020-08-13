@@ -4,7 +4,6 @@ use super::interrupts::request_interrupt;
 pub struct Timers {
     pub divider_frequency: u32,
     pub timer_counter: u32,
-    pub divider_counter: u32,
     pub scan_line_counter: u32,
     pub master_enabled: bool,
     pub sched_master_enabled: bool,
@@ -18,7 +17,6 @@ impl Timers {
             scan_line_counter: 0,
             divider_frequency,
             timer_counter: 0,
-            divider_counter: 0,
             master_enabled: false,
             sched_master_enabled: false,
             is_halted: false,
@@ -54,9 +52,8 @@ pub fn update(emu: &mut Emulator, opcode_cycles: u32) {
         emu.timers.master_enabled = true;
         emu.timers.sched_master_enabled = false;
     }
-    emu.timers.divider_counter += opcode_cycles;
-    while emu.timers.divider_counter >= 64 {
-        emu.timers.divider_counter -= 64;
+    emu.memory.divider_counter += opcode_cycles / 4; // 64 machine cycles
+    if emu.memory.divider_counter % 64 == 0 {
         emu.memory.update_div();
     }
 

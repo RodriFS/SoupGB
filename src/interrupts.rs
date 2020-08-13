@@ -25,7 +25,7 @@ pub fn is_interrupt_requested(emu: &Emulator, bit: u8) -> bool {
 
 pub fn interrupt_execution(emu: &mut Emulator, request: u8, interrupt: u8) {
     let clear_request = clear_bit_at(request, interrupt);
-    emu.memory.write(0xff0f, clear_request);
+    emu.mem_write(0xff0f, clear_request);
     let pc = emu.memory.get_program_counter();
     emu.push_to_stack(pc);
     let pc = match interrupt {
@@ -36,6 +36,8 @@ pub fn interrupt_execution(emu: &mut Emulator, request: u8, interrupt: u8) {
         4 => 0x60,
         _ => return,
     };
+    emu.take_cycle();
+    emu.take_cycle();
     emu.memory.set_program_counter(pc);
 }
 

@@ -28,8 +28,8 @@ pub fn main() {
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
     let buf_len = SCREEN_WIDTH * SCREEN_HEIGHT;
     while window.is_open() && !window.is_key_down(Key::Escape) {
-        print_debug_memory_info(&emulator.memory, &emulator.timers);
         print_debug_registers_info(&emulator.registers);
+        print_debug_memory_info(&emulator.memory, &emulator.timers);
         cpu::update(&mut emulator);
         if emulator.frame_buffer.len() == buf_len {
             // if emulator.memory.get_ly() == 143 && emulator.memory.get_lcd_status() == LcdMode::HBlank {

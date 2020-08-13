@@ -53,6 +53,7 @@ pub struct Memory {
     dma_copy_address: u16,
     dma_copy_in_progress: bool,
     dma_cursor: u16,
+    pub divider_counter: u32,
 }
 
 // General Initialization functions
@@ -60,8 +61,8 @@ impl Memory {
     pub fn default() -> Self {
         let mut io_ports = [0; 0x80];
         // DIV & TIMA
-        // io_ports[0x04] = 0xab;
-        // io_ports[0x05] = 0xcc;
+        io_ports[0x04] = 0xab;
+        io_ports[0x05] = 0xcc;
 
         io_ports[0x10] = 0x80;
         io_ports[0x11] = 0xBF;
@@ -107,6 +108,7 @@ impl Memory {
             dma_copy_address: 0,
             dma_copy_in_progress: false,
             dma_cursor: 0,
+            divider_counter: 0,
         }
     }
 }
@@ -223,6 +225,9 @@ impl Memory {
         self.read(DIVIDER_COUNTER_ADDRESS)
     }
     pub fn set_div(&mut self, data: u8) {
+        if data == 0 {
+            self.divider_counter = 0;
+        }
         self.io_ports[DIVIDER_COUNTER_ADDRESS as usize - 0xff00] = data;
     }
     pub fn get_tima(&self) -> u8 {
@@ -630,6 +635,7 @@ impl Memory {
             }
             0xff02 => self.write_io_ports(address, data | 0b0111_1110),
             0xff04 => {
+                self.divider_counter = 0;
                 self.write_io_ports(0xff04, 0);
                 self.write_io_ports(0xff05, 0); // TO CHECK
             }
