@@ -29,7 +29,7 @@
           "kind": "bin"
         }
       },
-      "args": ["test_rom/Pomo.gb"],
+      "args": ["./test_rom/mooneye/acceptance/halt_ime0_nointr_timing.gb"],
       "cwd": "${workspaceFolder}"
     },
     {

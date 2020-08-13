@@ -1,7 +1,8 @@
 use super::constants::*;
 use super::emulator::Emulator;
+use super::interrupts::{is_interrupt_requested, request_interrupt};
 use super::memory::{LcdMode, Point2D};
-use super::utils::{get_bit_at, set_bit_at};
+use super::utils::get_bit_at;
 
 struct Gpu<'a> {
     emu: &'a mut Emulator,
@@ -10,13 +11,6 @@ struct Gpu<'a> {
 impl<'a> Gpu<'a> {
     fn new(emu: &'a mut Emulator) -> Self {
         Self { emu }
-    }
-
-    fn req_interrupt(&mut self, bit: u8) {
-        let interrupt_flags = self.emu.memory.read(0xff0f);
-        let modified_flag = set_bit_at(interrupt_flags, bit);
-        self.emu.memory.write(0xff0f, modified_flag);
-        self.emu.timers.is_halted = false;
     }
 
     fn set_lcd_mode(&mut self) {
@@ -30,7 +24,7 @@ impl<'a> Gpu<'a> {
                 if self.emu.timers.scan_line_counter >= 80 {
                     self.emu.timers.scan_line_counter = 0;
                     new_mode = Some(LcdMode::ReadVRAM);
-                    req_int = self.emu.memory.is_interrupt_requested(5);
+                    req_int = is_interrupt_requested(self.emu, 5);
                 }
             }
             LcdMode::ReadVRAM => {
@@ -49,11 +43,11 @@ impl<'a> Gpu<'a> {
 
                     if self.emu.memory.get_ly() > 143 {
                         new_mode = Some(LcdMode::VBlank);
-                        self.req_interrupt(0);
+                        request_interrupt(self.emu, 0);
                     } else {
                         new_mode = Some(LcdMode::ReadOAM)
                     };
-                    req_int = self.emu.memory.is_interrupt_requested(3);
+                    req_int = is_interrupt_requested(self.emu, 3);
                 }
             }
             LcdMode::VBlank => {
@@ -65,7 +59,7 @@ impl<'a> Gpu<'a> {
                     if self.emu.memory.get_ly() > 153 {
                         new_mode = Some(LcdMode::ReadOAM);
                         self.emu.memory.write_scanline(0);
-                        req_int = self.emu.memory.is_interrupt_requested(4);
+                        req_int = is_interrupt_requested(self.emu, 4);
                     }
                 }
             }
@@ -74,13 +68,13 @@ impl<'a> Gpu<'a> {
         if let Some(mode) = new_mode {
             self.emu.memory.set_lcd_status(mode);
             if req_int {
-                self.req_interrupt(1);
+                request_interrupt(self.emu, 1);
             }
         }
         if current_line == self.emu.memory.get_lyc() {
             self.emu.memory.set_coincidence_flag();
-            if self.emu.memory.is_interrupt_requested(6) {
-                self.req_interrupt(1);
+            if is_interrupt_requested(self.emu, 6) {
+                request_interrupt(self.emu, 1);
             }
         } else {
             self.emu.memory.clear_coincidence_flag();

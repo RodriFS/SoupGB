@@ -1094,8 +1094,9 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         }
         0x03 => {
             let bc = emu.registers.get_bc();
-            emu.registers.set_bc(bc.wrapping_add(1));
-            emu.take_cycle()
+            let result = bc.wrapping_add(1);
+            emu.take_cycle();
+            emu.registers.set_bc(result);
         }
         0x04 => {
             emu.registers.b = inc_n(emu.registers.b, &mut emu.registers);
@@ -1121,8 +1122,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 emu.registers.get_bc(),
                 &mut emu.registers,
             );
+            emu.take_cycle();
             emu.registers.set_hl(result);
-            emu.take_cycle()
         }
         0x0a => {
             let data = emu.mem_read(emu.registers.get_bc());
@@ -1130,8 +1131,9 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         }
         0x0b => {
             let bc = emu.registers.get_bc();
-            emu.registers.set_bc(bc.wrapping_sub(1));
-            emu.take_cycle()
+            let result = bc.wrapping_sub(1);
+            emu.take_cycle();
+            emu.registers.set_bc(result);
         }
         0x0c => {
             emu.registers.c = inc_n(emu.registers.c, &mut emu.registers);
@@ -1156,8 +1158,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         }
         0x13 => {
             let de = emu.registers.get_de();
+            emu.take_cycle();
             emu.registers.set_de(de.wrapping_add(1));
-            emu.take_cycle()
         }
         0x14 => {
             emu.registers.d = inc_n(emu.registers.d, &mut emu.registers);
@@ -1181,8 +1183,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 emu.registers.get_de(),
                 &mut emu.registers,
             );
+            emu.take_cycle();
             emu.registers.set_hl(result);
-            emu.take_cycle()
         }
         0x1a => {
             let data = emu.mem_read(emu.registers.get_de());
@@ -1190,8 +1192,9 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         }
         0x1b => {
             let de = emu.registers.get_de();
-            emu.registers.set_de(de.wrapping_sub(1));
-            emu.take_cycle()
+            let result = de.wrapping_sub(1);
+            emu.take_cycle();
+            emu.registers.set_de(result);
         }
         0x1c => {
             emu.registers.e = inc_n(emu.registers.e, &mut emu.registers);
@@ -1222,8 +1225,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         }
         0x23 => {
             let hl = emu.registers.get_hl();
+            emu.take_cycle();
             emu.registers.set_hl(hl.wrapping_add(1));
-            emu.take_cycle()
         }
         0x24 => {
             emu.registers.h = inc_n(emu.registers.h, &mut emu.registers);
@@ -1247,8 +1250,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 emu.registers.get_hl(),
                 &mut emu.registers,
             );
+            emu.take_cycle();
             emu.registers.set_hl(result);
-            emu.take_cycle()
         }
         0x2a => {
             let address = emu.registers.get_hl();
@@ -1258,8 +1261,9 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         }
         0x2b => {
             let hl = emu.registers.get_hl();
-            emu.registers.set_hl(hl.wrapping_sub(1));
-            emu.take_cycle()
+            let result = hl.wrapping_sub(1);
+            emu.take_cycle();
+            emu.registers.set_hl(result);
         }
         0x2c => {
             emu.registers.l = inc_n(emu.registers.l, &mut emu.registers);
@@ -1292,7 +1296,7 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         }
         0x33 => {
             emu.memory.increment_stack_pointer(1);
-            emu.take_cycle()
+            emu.take_cycle();
         }
         0x34 => {
             let data = read_hl_mem_address(emu);
@@ -1332,8 +1336,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 emu.memory.get_stack_pointer(),
                 &mut emu.registers,
             );
+            emu.take_cycle();
             emu.registers.set_hl(result);
-            emu.take_cycle()
         }
         0x3a => {
             let address = emu.registers.get_hl();
@@ -1769,7 +1773,6 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         0xc0 => {
             let z = emu.registers.get_flag(Flags::Z);
             ret_cc(z == 0, emu);
-            emu.take_cycle();
         }
         0xc1 => {
             let data = emu.pop_from_stack();
@@ -1801,17 +1804,16 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         0xc8 => {
             let z = emu.registers.get_flag(Flags::Z);
             ret_cc(z == 1, emu);
-            emu.take_cycle();
         }
         0xc9 => {
-            ret_cc(true, emu);
+            ret(emu);
         }
         0xca => {
             let z = emu.registers.get_flag(Flags::Z);
             jp_cc_nn(z == 1, emu);
         }
         0xcb => {
-            let address = emu.memory.get_byte();
+            let address = emu.fetch_opcode();
             execute_opcode(emu, address, true);
         }
         0xcc => {
@@ -1831,7 +1833,6 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         0xd0 => {
             let c = emu.registers.get_flag(Flags::C);
             ret_cc(c == 0, emu);
-            emu.take_cycle();
         }
         0xd1 => {
             let data = emu.pop_from_stack();
@@ -1860,13 +1861,9 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
         0xd8 => {
             let c = emu.registers.get_flag(Flags::C);
             ret_cc(c == 1, emu);
-            emu.take_cycle();
         }
         0xd9 => {
-            let address = emu.pop_from_stack();
-            emu.memory.set_program_counter(address);
-            emu.timers.set_master_enabled_on();
-            emu.take_cycle()
+            reti(emu);
         }
         0xda => {
             let c = emu.registers.get_flag(Flags::C);
@@ -1919,8 +1916,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
             emu.registers
                 .set_flag(Flags::C, (address & 0xff) + (data & 0xff) > 0xff);
             let result = address.wrapping_add(data as u16);
-            emu.memory.set_stack_pointer(result);
             emu.take_cycle();
+            emu.memory.set_stack_pointer(result);
             emu.take_cycle();
         }
         0xe9 => {
@@ -1975,13 +1972,14 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
                 .set_flag(Flags::C, (address & 0xff) + (data & 0xff) > 0xff);
             emu.registers.set_flag(Flags::Z, false);
             emu.registers.set_flag(Flags::N, false);
-            emu.registers.set_hl(address.wrapping_add(data));
-            emu.take_cycle()
+            let result = address.wrapping_add(data);
+            emu.take_cycle();
+            emu.registers.set_hl(result);
         }
         0xf9 => {
             let address = emu.registers.get_hl();
+            emu.take_cycle(); // check if before or after SP
             emu.memory.set_stack_pointer(address);
-            emu.take_cycle()
         }
         0xfa => {
             let word = emu.get_word();
@@ -2006,7 +2004,7 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
 
 pub fn update(emulator: &mut Emulator) {
     if !emulator.timers.is_halted {
-        let opcode = emulator.memory.get_byte();
+        let opcode = emulator.fetch_opcode();
         emulator.take_cycle();
         return execute_opcode(emulator, opcode, false);
     }

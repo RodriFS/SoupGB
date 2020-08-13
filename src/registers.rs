@@ -22,14 +22,14 @@ pub struct Registers {
 impl Registers {
   pub fn default() -> Self {
     Self {
-      a: 0x11,
-      f: 0x80,
+      a: 0x01,
+      f: 0xb0,
       b: 0x00,
-      c: 0x00,
+      c: 0x13,
       d: 0x00,
-      e: 0x08,
-      h: 0x00,
-      l: 0x7C,
+      e: 0xd8,
+      h: 0x01,
+      l: 0x4d,
     }
   }
 

@@ -60,8 +60,8 @@ impl Memory {
     pub fn default() -> Self {
         let mut io_ports = [0; 0x80];
         // DIV & TIMA
-        io_ports[0x04] = 0xab;
-        io_ports[0x05] = 0xcc;
+        // io_ports[0x04] = 0xab;
+        // io_ports[0x05] = 0xcc;
 
         io_ports[0x10] = 0x80;
         io_ports[0x11] = 0xBF;
@@ -82,7 +82,7 @@ impl Memory {
         io_ports[0x47] = 0xFC;
         io_ports[0x48] = 0xFF;
         io_ports[0x49] = 0xFF;
-        io_ports[0x41] = 0x85;
+        // io_ports[0x41] = 0x85;
 
         Self {
             wram: [0; 0x2000],
@@ -113,11 +113,6 @@ impl Memory {
 
 // General CPU functions
 impl Memory {
-    pub fn get_byte(&mut self) -> u8 {
-        let data = self.read(self.get_program_counter());
-        self.increment_program_counter(1);
-        data
-    }
     pub fn get_word(&mut self) -> u16 {
         let c = self.get_program_counter();
         self.increment_program_counter(2);
@@ -432,33 +427,6 @@ impl Memory {
     }
 }
 
-// General Interrupts functions
-impl Memory {
-    pub fn is_interrupt_requested(&self, bit: u8) -> bool {
-        let lcd_status = self.read(0xff41);
-        get_bit_at(lcd_status, bit)
-    }
-    pub fn interrupt_execution(&mut self, request: u8, interrupt: u8) {
-        // if interrupt & request == 0 {
-        //     self.set_program_counter(0);
-        //     return;
-        // }
-        let clear_request = clear_bit_at(request, interrupt);
-        self.write(0xff0f, clear_request);
-        let pc = self.get_program_counter();
-        self.push_to_stack(pc);
-        let pc = match interrupt {
-            0 => 0x40,
-            1 => 0x48,
-            2 => 0x50,
-            3 => 0x58,
-            4 => 0x60,
-            _ => return,
-        };
-        self.set_program_counter(pc);
-    }
-}
-
 // Memory Read/Write functions
 impl Memory {
     pub fn get_bank2_as_low(&self) -> u8 {
@@ -588,7 +556,7 @@ impl Memory {
             MBC::ROM_ONLY if address > 0x8000 => {
                 panic!("Trying to write to address greater than 0x8000")
             }
-            MBC::ROM_ONLY => println!("address: {:X}, data: {:X}", address, data),
+            MBC::ROM_ONLY => {}
             MBC::MBC2 if get_bit_at(address.to_be_bytes()[1], 4) => {}
             MBC::MBC1 | MBC::MBC2 if address <= 0x1fff => match data & 0xf {
                 0b1010 => self.set_is_ram_enabled(true),

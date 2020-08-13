@@ -54,16 +54,25 @@ impl Emulator {
   }
 
   pub fn get_word(&mut self) -> u16 {
-    let lo = self.memory.get_byte() as u16;
+    let lo = self.memory.read(self.memory.get_program_counter()) as u16;
     self.take_cycle();
-    let hi = self.memory.get_byte() as u16;
+    self.memory.increment_program_counter(1);
+    let hi = self.memory.read(self.memory.get_program_counter()) as u16;
     self.take_cycle();
+    self.memory.increment_program_counter(1);
     (hi << 8) | lo
   }
 
   pub fn get_byte(&mut self) -> u8 {
-    let byte = self.memory.get_byte();
+    let byte = self.memory.read(self.memory.get_program_counter());
     self.take_cycle();
+    self.memory.increment_program_counter(1);
+    byte
+  }
+
+  pub fn fetch_opcode(&mut self) -> u8 {
+    let byte = self.memory.read(self.memory.get_program_counter());
+    self.memory.increment_program_counter(1);
     byte
   }
 
@@ -79,11 +88,11 @@ impl Emulator {
 
   pub fn pop_from_stack(&mut self) -> u16 {
     let byte1 = self.memory.read(self.memory.stack_pointer);
-    self.take_cycle();
     self.memory.increment_stack_pointer(1);
+    self.take_cycle(); // check if before or after increment
     let byte2 = self.memory.read(self.memory.stack_pointer);
-    self.take_cycle();
     self.memory.increment_stack_pointer(1);
+    self.take_cycle(); // check if before or after increment
     (byte2 as u16) << 8 | byte1 as u16
   }
 }
