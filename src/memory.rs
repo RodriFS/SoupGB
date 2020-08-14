@@ -53,7 +53,8 @@ pub struct Memory {
     dma_copy_address: u16,
     dma_copy_in_progress: bool,
     dma_cursor: u16,
-    pub divider_counter: u32,
+    pub prev_bit: u16,
+    pub sched_tima_increment: bool,
 }
 
 // General Initialization functions
@@ -104,11 +105,12 @@ impl Memory {
             banking_mode: Bmode::ROM,
             stack_pointer: 0xfffe,
             program_counter: 0x100,
-            input_clock_select: 1024,
+            input_clock_select: 0,
             dma_copy_address: 0,
             dma_copy_in_progress: false,
             dma_cursor: 0,
-            divider_counter: 0,
+            prev_bit: 0,
+            sched_tima_increment: false,
         }
     }
 }
@@ -224,40 +226,36 @@ impl Memory {
     pub fn get_div(&self) -> u8 {
         self.read(DIVIDER_COUNTER_ADDRESS)
     }
-    pub fn set_div(&mut self, data: u8) {
-        if data == 0 {
-            self.divider_counter = 0;
-        }
-        self.io_ports[DIVIDER_COUNTER_ADDRESS as usize - 0xff00] = data;
+    pub fn get_div_counter(&self) -> u16 {
+        (self.get_div() as u16) << 8 | self.read(DIVIDER_COUNTER_ADDRESS - 1) as u16
     }
+    pub fn set_div_counter(&mut self, data: u16) {
+        self.io_ports[DIVIDER_COUNTER_ADDRESS as usize - 0xff00 - 1] = data as u8;
+        self.io_ports[DIVIDER_COUNTER_ADDRESS as usize - 0xff00] = (data >> 8) as u8;
+    }
+
     pub fn get_tima(&self) -> u8 {
         self.read(TIMER_COUNTER_ADDRESS)
     }
     pub fn set_tima(&mut self, counter: u8) {
-        self.write(TIMER_COUNTER_ADDRESS, counter);
+        self.io_ports[TIMER_COUNTER_ADDRESS as usize - 0xff00] = counter;
     }
     pub fn get_tma(&self) -> u8 {
         self.read(TIMER_MODULO_ADDRESS)
     }
     pub fn get_tac(&self) -> u8 {
-        self.read(TIMER_CONTROL_ADDRESS) & 0b0000_0111
+        self.read(TIMER_CONTROL_ADDRESS)
     }
-    pub fn get_is_clock_enabled(&self) -> bool {
-        let timers = self.get_tac();
-        timers >> 2 == 1
+    pub fn is_clock_enabled(&self) -> u16 {
+        let timers = self.get_tac() & 0b0000_0111;
+        (timers >> 2) as u16
     }
-
-    pub fn update_div(&mut self) {
-        let divider_register = self.get_div().wrapping_add(1);
-        self.set_div(divider_register);
-    }
-
     pub fn set_clock_frequency(&mut self, bits: u8) {
         match bits {
-            0 => self.input_clock_select = 1024, // freq 4096
-            1 => self.input_clock_select = 16,   // freq 262144
-            2 => self.input_clock_select = 64,   // freq 65536
-            3 => self.input_clock_select = 256,  // freq 16382
+            0 => self.input_clock_select = 9, // freq 4096 / 1024
+            1 => self.input_clock_select = 3, // freq 262144 / 16
+            2 => self.input_clock_select = 5, // freq 65536 / 64
+            3 => self.input_clock_select = 7, // freq 16382 / 256
             _ => panic!("Frequency not supported"),
         }
     }
@@ -635,9 +633,13 @@ impl Memory {
             }
             0xff02 => self.write_io_ports(address, data | 0b0111_1110),
             0xff04 => {
-                self.divider_counter = 0;
+                self.write_io_ports(0xff03, 0);
                 self.write_io_ports(0xff04, 0);
-                self.write_io_ports(0xff05, 0); // TO CHECK
+            }
+            0xff05 => {
+                if !self.sched_tima_increment {
+                    self.write_io_ports(address, data);
+                }
             }
             0xff07 => {
                 self.set_clock_frequency(data & 0x3);

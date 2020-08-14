@@ -356,7 +356,7 @@ pub fn print_debug_memory_info(memory: &Memory, timers: &Timers) {
     }
     if DEBUG_TIMERS {
         let cf = memory.get_tac();
-        let te = memory.get_is_clock_enabled();
+        let te = memory.is_clock_enabled();
         let dr = memory.get_div();
         let tima = memory.get_tima();
         let tma = memory.get_tma();
