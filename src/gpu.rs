@@ -110,7 +110,7 @@ impl<'a> Gpu<'a> {
 
     fn get_tile_ids(&mut self, bg_mem: u16) -> (u16, u16) {
         let tiledata_region = self.emu.memory.bg_tile_data_select();
-        let data = self.emu.memory.read(bg_mem);
+        let data = self.emu.memory.read_unchecked(bg_mem);
         let tile_id = match tiledata_region {
             0x8000 => data as u16 * 16,
             0x8800 => ((data as i8) as u16).wrapping_add(128) * 16,
@@ -145,9 +145,9 @@ impl<'a> Gpu<'a> {
 
     fn get_sprites_palette(&mut self, attributes: u8) -> u8 {
         if get_bit_at(attributes, 4) {
-            return self.emu.memory.read(0xff49);
+            return self.emu.memory.read_unchecked(0xff49);
         }
-        self.emu.memory.read(0xff48)
+        self.emu.memory.read_unchecked(0xff48)
     }
 
     fn has_priority(&self, attributes: u8) -> bool {
@@ -167,8 +167,8 @@ impl<'a> Gpu<'a> {
         let pixel_row = (y_pos % 8) * 2;
         for (tile_pos, bg_mem) in (from..(from + visible_tiles)).enumerate() {
             let (tile1, tile2) = self.get_tile_ids(bg_mem);
-            let data1 = self.emu.memory.read(pixel_row as u16 + tile1);
-            let data2 = self.emu.memory.read(pixel_row as u16 + tile2);
+            let data1 = self.emu.memory.read_unchecked(pixel_row as u16 + tile1);
+            let data2 = self.emu.memory.read_unchecked(pixel_row as u16 + tile2);
             let pixels = self.make_pixels(data1, data2);
             pixels.iter().enumerate().for_each(|(i, pixel)| {
                 let pixel_pos = (tile_pos * 8) + i;
@@ -184,14 +184,18 @@ impl<'a> Gpu<'a> {
         let size = self.emu.memory.sprite_size();
         let current_line = self.emu.memory.get_ly();
         for sprite_pos in (0..160).step_by(4) {
-            let y_pos = self.emu.memory.read(0xfe00 + sprite_pos).wrapping_sub(16);
+            let y_pos = self
+                .emu
+                .memory
+                .read_unchecked(0xfe00 + sprite_pos)
+                .wrapping_sub(16);
             let x_pos = self
                 .emu
                 .memory
-                .read(0xfe00 + sprite_pos + 1)
+                .read_unchecked(0xfe00 + sprite_pos + 1)
                 .wrapping_sub(8);
-            let tile_location = self.emu.memory.read(0xfe00 + sprite_pos + 2);
-            let attributes = self.emu.memory.read(0xfe00 + sprite_pos + 3);
+            let tile_location = self.emu.memory.read_unchecked(0xfe00 + sprite_pos + 2);
+            let attributes = self.emu.memory.read_unchecked(0xfe00 + sprite_pos + 3);
             let palette = self.get_sprites_palette(attributes);
             let mut pixel_row = current_line.wrapping_sub(y_pos);
             if current_line >= y_pos && current_line < (y_pos + size) {
@@ -200,8 +204,8 @@ impl<'a> Gpu<'a> {
                     pixel_row = !pixel_row;
                 }
                 let data_address = (0x8000 + (tile_location as u16 * 16)) + pixel_row as u16 * 2;
-                let data1 = self.emu.memory.read(data_address);
-                let data2 = self.emu.memory.read(data_address + 1);
+                let data1 = self.emu.memory.read_unchecked(data_address);
+                let data2 = self.emu.memory.read_unchecked(data_address + 1);
                 let mut pixels = self.make_pixels(data1, data2);
                 if self.get_x_flip(attributes) {
                     pixels.reverse();

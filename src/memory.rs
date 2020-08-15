@@ -33,10 +33,10 @@ pub enum Bmode {
 pub struct Memory {
     pub cartridge_memory: Vec<u8>,
     wram: [u8; 0x2000],
-    vram: [u8; 0x2000],
+    pub vram: [u8; 0x2000],
     ram: [u8; 0x8000],
     echo: [u8; 0x1e00],
-    oam: [u8; 0xa0],
+    pub oam: [u8; 0xa0],
     io_ports: [u8; 0x80],
     hram: [u8; 0x80],
     ie_register: u8,
@@ -224,27 +224,27 @@ impl Memory {
 // General Timer functions
 impl Memory {
     pub fn get_div(&self) -> u8 {
-        self.read(DIVIDER_COUNTER_ADDRESS)
+        self.read_unchecked(DIVIDER_COUNTER_ADDRESS)
     }
     pub fn get_div_counter(&self) -> u16 {
-        (self.get_div() as u16) << 8 | self.read(DIVIDER_COUNTER_ADDRESS - 1) as u16
+        (self.get_div() as u16) << 8 | self.read_unchecked(DIVIDER_COUNTER_ADDRESS - 1) as u16
     }
     pub fn set_div_counter(&mut self, data: u16) {
-        self.io_ports[DIVIDER_COUNTER_ADDRESS as usize - 0xff00 - 1] = data as u8;
-        self.io_ports[DIVIDER_COUNTER_ADDRESS as usize - 0xff00] = (data >> 8) as u8;
+        self.write_unchecked(DIVIDER_COUNTER_ADDRESS - 1, data as u8);
+        self.write_unchecked(DIVIDER_COUNTER_ADDRESS, (data >> 8) as u8);
     }
 
     pub fn get_tima(&self) -> u8 {
-        self.read(TIMER_COUNTER_ADDRESS)
+        self.read_unchecked(TIMER_COUNTER_ADDRESS)
     }
     pub fn set_tima(&mut self, counter: u8) {
-        self.io_ports[TIMER_COUNTER_ADDRESS as usize - 0xff00] = counter;
+        self.write_unchecked(TIMER_COUNTER_ADDRESS, counter);
     }
     pub fn get_tma(&self) -> u8 {
-        self.read(TIMER_MODULO_ADDRESS)
+        self.read_unchecked(TIMER_MODULO_ADDRESS)
     }
     pub fn get_tac(&self) -> u8 {
-        self.read(TIMER_CONTROL_ADDRESS)
+        self.read_unchecked(TIMER_CONTROL_ADDRESS)
     }
     pub fn tac_enabled(&self) -> u16 {
         let timers = self.get_tac() & 0b0000_0111;
@@ -414,17 +414,14 @@ impl Memory {
         if !self.dma_copy_in_progress {
             return;
         }
-        if self.dma_cursor == 0 {
-            // skip step
-            self.dma_cursor += 1;
-        } else if self.dma_cursor > 0xA1 {
+        if self.dma_cursor > 0xA0 {
             self.dma_copy_in_progress = false;
             self.dma_cursor = 0;
             self.dma_copy_address = 0;
         } else {
-            self.write(
-                0xfe00 + self.dma_cursor - 1,
-                self.read(self.dma_copy_address + self.dma_cursor - 1),
+            self.write_unchecked(
+                0xfe00 + self.dma_cursor,
+                self.read_unchecked(self.dma_copy_address + self.dma_cursor),
             );
             self.dma_cursor += 1;
         }
@@ -491,7 +488,7 @@ impl Memory {
     fn write_echo(&mut self, address: u16, data: u8) {
         let bank_address = address - 0xe000;
         self.echo[bank_address as usize] = data;
-        if address >= 0xe000 && address <= 0xfDFF {
+        if address >= 0xe000 && address <= 0xfdff {
             self.wram[bank_address as usize] = data;
         }
     }
@@ -540,29 +537,6 @@ impl Memory {
         self.hram[(address - 0xff80) as usize] = data;
     }
 
-    pub fn read(&self, address: u16) -> u8 {
-        match address {
-            0x0000..=0x3fff if self.banking_mode == Bmode::ROM => self.read_rom(address, 0),
-            0x0000..=0x3fff if self.banking_mode == Bmode::RAM => {
-                self.read_rom(address, self.get_bank2_as_high())
-            }
-            0x4000..=0x7fff => self.read_rom(address, self.memory_bank),
-            0x8000..=0x9fff => self.read_vram(address),
-            0xa000..=0xbfff if !self.is_ram_enabled => 0xff,
-            0xa000..=0xbfff if self.banking_mode == Bmode::ROM => self.read_ram(address, 0),
-            0xa000..=0xbfff if self.banking_mode == Bmode::RAM => {
-                self.read_ram(address, self.get_bank2_as_low())
-            }
-            0xc000..=0xdfff => self.read_wram(address),
-            0xe000..=0xfdff => self.read_echo(address),
-            0xfe00..=0xfe9f => self.read_oam(address),
-            0xfea0..=0xfeff => 0,
-            0xff00..=0xff7f => self.read_io_ports(address),
-            0xff80..=0xfffe => self.read_hram(address),
-            0xffff => self.ie_register,
-            _ => panic!("Unsupported memory address read: {:04X}", address),
-        }
-    }
     pub fn handle_bank_type(&mut self, address: u16, data: u8) {
         match self.memory_bank_type {
             MBC::ROM_ONLY if address > 0x8000 => {
@@ -619,14 +593,53 @@ impl Memory {
             }
         };
     }
+
+    pub fn read(&self, address: u16) -> u8 {
+        match address {
+            0x8000..=0x9fff if self.dma_copy_in_progress => 0xff,
+            0xfe00..=0xfe9f if self.dma_copy_in_progress => 0xff,
+            0xa000..=0xbfff if !self.is_ram_enabled => 0xff,
+            0xfe00..=0xfe9f if self.dma_copy_in_progress => 0xff,
+            _ => self.read_unchecked(address),
+        }
+    }
+    pub fn read_unchecked(&self, address: u16) -> u8 {
+        match address {
+            0x0000..=0x3fff if self.banking_mode == Bmode::ROM => self.read_rom(address, 0),
+            0x0000..=0x3fff if self.banking_mode == Bmode::RAM => {
+                self.read_rom(address, self.get_bank2_as_high())
+            }
+            0x4000..=0x7fff => self.read_rom(address, self.memory_bank),
+            0x8000..=0x9fff => self.read_vram(address),
+            0xa000..=0xbfff if self.banking_mode == Bmode::ROM => self.read_ram(address, 0),
+            0xa000..=0xbfff if self.banking_mode == Bmode::RAM => {
+                self.read_ram(address, self.get_bank2_as_low())
+            }
+            0xc000..=0xdfff => self.read_wram(address),
+            0xe000..=0xfdff => self.read_echo(address),
+            0xfe00..=0xfe9f => self.read_oam(address),
+            0xfea0..=0xfeff => 0,
+            0xff00..=0xff7f => self.read_io_ports(address),
+            0xff80..=0xfffe => self.read_hram(address),
+            0xffff => self.ie_register,
+            _ => panic!("Unsupported memory address read: {:04X}", address),
+        }
+    }
     pub fn write(&mut self, address: u16, data: u8) {
+        match address {
+            0x8000..=0x9fff if self.dma_copy_in_progress => {}
+            0xfe00..=0xfe9f if self.dma_copy_in_progress => {}
+            0xa000..=0xbfff if !self.is_ram_enabled => {}
+            0xfe00..=0xfe9f if self.dma_copy_in_progress => {}
+            0xff05 if self.sched_tima_reload => {}
+            _ => self.write_unchecked(address, data),
+        }
+    }
+    pub fn write_unchecked(&mut self, address: u16, data: u8) {
         match address {
             0x0000..=0x7fff => self.handle_bank_type(address, data),
             0x8000..=0x9FFF => self.write_vram(address, data),
-            0xa000..=0xbfff if self.is_ram_enabled => {
-                self.write_ram(address, self.get_bank2_as_low(), data)
-            }
-            0xa000..=0xbfff => {}
+            0xa000..=0xbfff => self.write_ram(address, self.get_bank2_as_low(), data),
             0xc000..=0xdfff => self.write_wram(address, data),
             0xe000..=0xfdff => self.write_echo(address, data),
             0xfe00..=0xfe9f => self.write_oam(address, data),
@@ -644,11 +657,6 @@ impl Memory {
             0xff04 => {
                 self.write_io_ports(0xff03, 0);
                 self.write_io_ports(0xff04, 0);
-            }
-            0xff05 => {
-                if !self.sched_tima_reload {
-                    self.write_io_ports(address, data);
-                }
             }
             0xff07 => self.write_io_ports(address, data | 0b1111_1000),
             0xff0f => self.write_io_ports(address, data | 0b1110_0000),
