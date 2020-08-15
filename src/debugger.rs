@@ -333,6 +333,13 @@ pub fn print_debug_memory_info(memory: &Memory, timers: &Timers) {
             timers.scan_line_counter
         );
         print_instruction(opcode, n16.swap_bytes());
+        if pc == 0x192 {
+            println!(
+                "--------------------------////////////////////////// {:X} {:X}",
+                memory.read(0xfdff),
+                memory.read(0xddff)
+            );
+        }
     }
     if DEBUG_MEMORY {
         let cromb = memory.memory_bank;

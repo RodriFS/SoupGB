@@ -488,6 +488,14 @@ impl Memory {
         self.echo[echo_address as usize]
     }
 
+    fn write_echo(&mut self, address: u16, data: u8) {
+        let bank_address = address - 0xe000;
+        self.echo[bank_address as usize] = data;
+        if address >= 0xe000 && address <= 0xfDFF {
+            self.wram[bank_address as usize] = data;
+        }
+    }
+
     fn write_vram(&mut self, address: u16, data: u8) {
         let vram_address = address - 0x8000;
         self.vram[vram_address as usize] = data;
@@ -620,7 +628,7 @@ impl Memory {
             }
             0xa000..=0xbfff => {}
             0xc000..=0xdfff => self.write_wram(address, data),
-            0xe000..=0xfdff => {}
+            0xe000..=0xfdff => self.write_echo(address, data),
             0xfe00..=0xfe9f => self.write_oam(address, data),
             0xfea0..=0xfeff => {}
             0xff00 | 0xff20 => self.write_io_ports(address, data | 0b1100_0000),
