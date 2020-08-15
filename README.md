@@ -21,7 +21,7 @@ Tests status:
 | add_sp_e_timing                  |   ❌   |
 | bits/mem_oam                     |   👍   |
 | bits/reg_f                       |   👍   |
-| bits/unused_hwio-GS              |   👍   |
+| bits/unused_hwio-GS              |   ❌   |
 | call_cc_timing                   |   ❌   |
 | call_cc_timing2                  |   ❌   |
 | call_timing                      |   ❌   |

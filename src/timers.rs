@@ -35,24 +35,23 @@ pub fn update_div_counter(emu: &mut Emulator, data: u16) {
     emu.memory.set_div_counter(result);
 }
 
-pub fn cc_reload_tima(emu: &mut Emulator) {
-    if emu.memory.sched_tima_increment {
+pub fn cc_tima_reload(emu: &mut Emulator) {
+    if emu.memory.sched_tima_reload {
         emu.memory.set_tima(emu.memory.get_tma());
         request_interrupt(emu, 2);
-        emu.memory.sched_tima_increment = false;
+        emu.memory.sched_tima_reload = false;
     }
 }
+
 pub fn update_tima(emu: &mut Emulator) {
-    let selected_bit = (emu.memory.get_div_counter() >> emu.memory.input_clock_select)
-        & 0b1
-        & emu.memory.is_clock_enabled();
-    cc_reload_tima(emu);
+    cc_tima_reload(emu);
+    let selected_bit =
+        (emu.memory.get_div_counter() >> emu.memory.tac_freq()) & 0b1 & emu.memory.tac_enabled();
     if !selected_bit & emu.memory.prev_bit == 1 {
         let new_tima = emu.memory.get_tima().wrapping_add(1);
         emu.memory.set_tima(new_tima);
         if new_tima == 0 {
-            // emu.memory.set_div_counter(0);
-            emu.memory.sched_tima_increment = true;
+            emu.memory.sched_tima_reload = true;
         }
     }
     emu.memory.prev_bit = selected_bit;

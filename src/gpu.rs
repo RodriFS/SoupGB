@@ -1,5 +1,5 @@
 use super::constants::*;
-use super::emulator::Emulator;
+use super::emulator::{Action, Emulator};
 use super::interrupts::{is_interrupt_requested, request_interrupt};
 use super::memory::{LcdMode, Point2D};
 use super::utils::get_bit_at;
@@ -17,13 +17,14 @@ impl<'a> Gpu<'a> {
         let current_line = self.emu.memory.get_ly();
         let current_mode = self.emu.memory.get_lcd_status();
         let mut req_int = false;
-        let mut new_mode = None;
         match current_mode {
             LcdMode::ReadOAM => {
                 // mode 2
                 if self.emu.timers.scan_line_counter >= 80 {
                     self.emu.timers.scan_line_counter = 0;
-                    new_mode = Some(LcdMode::ReadVRAM);
+                    self.emu
+                        .dispatcher
+                        .dispatch(Action::new_mode(LcdMode::ReadVRAM));
                     req_int = is_interrupt_requested(self.emu, 5);
                 }
             }
@@ -31,7 +32,9 @@ impl<'a> Gpu<'a> {
                 // mode 3
                 if self.emu.timers.scan_line_counter >= 172 {
                     self.emu.timers.scan_line_counter = 0;
-                    new_mode = Some(LcdMode::HBlank);
+                    self.emu
+                        .dispatcher
+                        .dispatch(Action::new_mode(LcdMode::HBlank));
                     self.draw_scan_line();
                 }
             }
@@ -42,10 +45,14 @@ impl<'a> Gpu<'a> {
                     self.emu.memory.increment_scanline();
 
                     if self.emu.memory.get_ly() > 143 {
-                        new_mode = Some(LcdMode::VBlank);
-                        request_interrupt(self.emu, 0);
+                        self.emu
+                            .dispatcher
+                            .dispatch(Action::new_mode(LcdMode::VBlank));
+                        self.emu.dispatcher.dispatch(Action::interrupt_request(0))
                     } else {
-                        new_mode = Some(LcdMode::ReadOAM)
+                        self.emu
+                            .dispatcher
+                            .dispatch(Action::new_mode(LcdMode::ReadOAM));
                     };
                     req_int = is_interrupt_requested(self.emu, 3);
                 }
@@ -55,21 +62,18 @@ impl<'a> Gpu<'a> {
                 if self.emu.timers.scan_line_counter >= 456 {
                     self.emu.timers.scan_line_counter = 0;
                     self.emu.memory.increment_scanline();
-
                     if self.emu.memory.get_ly() > 153 {
-                        new_mode = Some(LcdMode::ReadOAM);
+                        self.emu
+                            .dispatcher
+                            .dispatch(Action::new_mode(LcdMode::ReadOAM));
                         self.emu.memory.write_scanline(0);
                         req_int = is_interrupt_requested(self.emu, 4);
                     }
                 }
             }
         };
-
-        if let Some(mode) = new_mode {
-            self.emu.memory.set_lcd_status(mode);
-            if req_int {
-                request_interrupt(self.emu, 1);
-            }
+        if req_int {
+            self.emu.dispatcher.dispatch(Action::interrupt_request(1))
         }
         if current_line == self.emu.memory.get_lyc() {
             self.emu.memory.set_coincidence_flag();

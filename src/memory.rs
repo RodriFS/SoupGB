@@ -8,7 +8,7 @@ pub struct Point2D {
     pub y: u8,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Copy, Clone)]
 pub enum LcdMode {
     HBlank,
     VBlank,
@@ -49,12 +49,12 @@ pub struct Memory {
     pub banking_mode: Bmode,
     pub stack_pointer: u16,
     program_counter: u16,
-    pub input_clock_select: u32,
     dma_copy_address: u16,
     dma_copy_in_progress: bool,
     dma_cursor: u16,
     pub prev_bit: u16,
-    pub sched_tima_increment: bool,
+    pub sched_tima_reload: bool,
+    pub sched_lcd_mode: Option<LcdMode>,
 }
 
 // General Initialization functions
@@ -105,12 +105,12 @@ impl Memory {
             banking_mode: Bmode::ROM,
             stack_pointer: 0xfffe,
             program_counter: 0x100,
-            input_clock_select: 0,
             dma_copy_address: 0,
             dma_copy_in_progress: false,
             dma_cursor: 0,
             prev_bit: 0,
-            sched_tima_increment: false,
+            sched_tima_reload: false,
+            sched_lcd_mode: None,
         }
     }
 }
@@ -246,16 +246,17 @@ impl Memory {
     pub fn get_tac(&self) -> u8 {
         self.read(TIMER_CONTROL_ADDRESS)
     }
-    pub fn is_clock_enabled(&self) -> u16 {
+    pub fn tac_enabled(&self) -> u16 {
         let timers = self.get_tac() & 0b0000_0111;
         (timers >> 2) as u16
     }
-    pub fn set_clock_frequency(&mut self, bits: u8) {
+    pub fn tac_freq(&self) -> u8 {
+        let bits = self.get_tac() & 0b11;
         match bits {
-            0 => self.input_clock_select = 9, // freq 4096 / 1024
-            1 => self.input_clock_select = 3, // freq 262144 / 16
-            2 => self.input_clock_select = 5, // freq 65536 / 64
-            3 => self.input_clock_select = 7, // freq 16382 / 256
+            0 => 9, // freq 4096 / 1024
+            1 => 3, // freq 262144 / 16
+            2 => 5, // freq 65536 / 64
+            3 => 7, // freq 16382 / 256
             _ => panic!("Frequency not supported"),
         }
     }
@@ -637,14 +638,11 @@ impl Memory {
                 self.write_io_ports(0xff04, 0);
             }
             0xff05 => {
-                if !self.sched_tima_increment {
+                if !self.sched_tima_reload {
                     self.write_io_ports(address, data);
                 }
             }
-            0xff07 => {
-                self.set_clock_frequency(data & 0x3);
-                self.write_io_ports(address, data | 0b1111_1000)
-            }
+            0xff07 => self.write_io_ports(address, data | 0b1111_1000),
             0xff0f => self.write_io_ports(address, data | 0b1110_0000),
             0xff10 | 0xff41 => self.write_io_ports(address, data | 0b1000_0000),
             0xff1a => self.write_io_ports(address, data | 0b0111_1111),

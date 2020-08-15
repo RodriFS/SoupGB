@@ -1,16 +1,46 @@
 use super::constants::*;
 use super::gpu;
 use super::interrupts;
-use super::memory::Memory;
+use super::interrupts::request_interrupt;
+use super::memory::{LcdMode, Memory};
 use super::registers::Registers;
 use super::timers;
 use super::timers::Timers;
+use std::iter::FromIterator;
+
+#[allow(non_camel_case_types)]
+pub enum Action {
+  new_mode(LcdMode),
+  interrupt_request(u8),
+}
+
+#[derive(Default)]
+pub struct Dispatcher {
+  actions_queue: Vec<Action>,
+}
+
+impl Dispatcher {
+  fn run(emu: &mut Emulator) {
+    let actions_queue = Vec::from_iter(emu.dispatcher.actions_queue.drain(..));
+    for action in actions_queue {
+      match action {
+        Action::new_mode(mode) => emu.memory.set_lcd_status(mode),
+        Action::interrupt_request(bit) => request_interrupt(emu, bit),
+      }
+    }
+  }
+
+  pub fn dispatch(&mut self, action: Action) {
+    self.actions_queue.push(action);
+  }
+}
 
 pub struct Emulator {
   pub registers: Registers,
   pub memory: Memory,
   pub timers: Timers,
   pub frame_buffer: Vec<u32>,
+  pub dispatcher: Dispatcher,
 }
 
 impl Emulator {
@@ -20,10 +50,12 @@ impl Emulator {
       memory: Memory::default(),
       timers: Timers::default(),
       frame_buffer: Vec::with_capacity(SCREEN_WIDTH * SCREEN_HEIGHT),
+      dispatcher: Dispatcher::default(),
     }
   }
 
   pub fn take_cycle(&mut self) {
+    Dispatcher::run(self);
     gpu::update(self, 4);
     timers::update(self, 4);
     interrupts::update(self);
