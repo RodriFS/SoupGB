@@ -148,7 +148,8 @@ impl Memory {
             5 | 6 => MBC::MBC2,
             _ => MBC::ROM_ONLY,
         };
-        self.rom_size = (cartridge_memory[0x148] << 4) + 32;
+        let size = 32 << cartridge_memory[0x148];
+        self.rom_size = (size as f32 / 16.0) as u8;
         self.ram_size = match cartridge_memory[0x149] {
             0 => 0,
             1 => 2,
@@ -431,7 +432,11 @@ impl Memory {
 // Memory Read/Write functions
 impl Memory {
     pub fn get_bank2_as_low(&self) -> u8 {
-        (self.memory_bank & 0b0110_0000) >> 5
+        if self.banking_mode == Bmode::ROM {
+            0
+        } else {
+            self.memory_bank >> 5
+        }
     }
 
     pub fn get_bank2_as_high(&self) -> u8 {
@@ -466,7 +471,7 @@ impl Memory {
 
     fn read_rom(&self, address: u16, bank: u8) -> u8 {
         let mut rom_address = address;
-        if address > 0x3fff {
+        if rom_address > 0x3fff {
             rom_address -= 0x4000;
         }
         self.cartridge_memory
@@ -499,13 +504,27 @@ impl Memory {
     }
 
     fn read_ram(&self, address: u16, bank: u8) -> u8 {
-        let ram_address = address - 0xA000;
-        self.ram[(ram_address + (bank as u16 * 0x2000)) as usize]
+        let ram_bank = bank % 4;
+        let ram_address = (address - 0xa000) + (ram_bank as u16 * 0x2000);
+        if self.ram_size == 0
+            || (self.ram_size == 2 && ram_address > 0x800)
+            || (self.ram_size == 8 && ram_address > 0x2000)
+        {
+            return 0xff;
+        }
+        self.ram[ram_address as usize]
     }
 
     fn write_ram(&mut self, address: u16, bank: u8, data: u8) {
-        let bank_address = address - 0xa000;
-        self.ram[(bank_address + (bank as u16 * 0x2000)) as usize] = data;
+        let ram_bank = bank % 4;
+        let ram_address = (address - 0xa000) + (ram_bank as u16 * 0x2000);
+        if self.ram_size == 0
+            || (self.ram_size == 2 && ram_address > 0x800)
+            || (self.ram_size == 8 && ram_address > 0x2000)
+        {
+            return;
+        }
+        self.ram[ram_address as usize] = data;
     }
 
     fn read_wram(&self, address: u16) -> u8 {
@@ -605,11 +624,14 @@ impl Memory {
     }
     pub fn read_unchecked(&self, address: u16) -> u8 {
         match address {
-            0x0000..=0x3fff if self.banking_mode == Bmode::ROM => self.read_rom(address, 0),
-            0x0000..=0x3fff if self.banking_mode == Bmode::RAM => {
-                self.read_rom(address, self.get_bank2_as_high())
+            0x0000..=0x3fff => self.read_rom(address, 0),
+            0x4000..=0x7fff => {
+                if self.rom_size == 0 {
+                    self.read_rom(address, 1)
+                } else {
+                    self.read_rom(address, self.memory_bank % self.rom_size)
+                }
             }
-            0x4000..=0x7fff => self.read_rom(address, self.memory_bank),
             0x8000..=0x9fff => self.read_vram(address),
             0xa000..=0xbfff if self.banking_mode == Bmode::ROM => self.read_ram(address, 0),
             0xa000..=0xbfff if self.banking_mode == Bmode::RAM => {
@@ -639,7 +661,10 @@ impl Memory {
         match address {
             0x0000..=0x7fff => self.handle_bank_type(address, data),
             0x8000..=0x9FFF => self.write_vram(address, data),
-            0xa000..=0xbfff => self.write_ram(address, self.get_bank2_as_low(), data),
+            0xa000..=0xbfff if self.banking_mode == Bmode::ROM => self.write_ram(address, 0, data),
+            0xa000..=0xbfff if self.banking_mode == Bmode::RAM => {
+                self.write_ram(address, self.get_bank2_as_low(), data)
+            }
             0xc000..=0xdfff => self.write_wram(address, data),
             0xe000..=0xfdff => self.write_echo(address, data),
             0xfe00..=0xfe9f => self.write_oam(address, data),

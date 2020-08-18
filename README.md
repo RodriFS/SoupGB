@@ -81,3 +81,21 @@ Tests status:
 | timer/tima_reload                |   👍   |
 | timer/tima_write_reloading       |   ❌   |
 | timer/tma_write_reloading        |   ❌   |
+
+## Mooneye Emulator Only tests
+
+| Test                   | Status |
+| ---------------------- | :----: |
+| mbc1/bits_bank1        |   👍   |
+| mbc1/bits_bank2        |   👍   |
+| mbc1/bits_mode         |   👍   |
+| mbc1/bits_ramg         |   👍   |
+| mbc1/multicart_rom_8Mb |   ❌   |
+| mbc1/ram_64kb          |   ❌   |
+| mbc1/ram_256kb         |   👍   |
+| mbc1/rom_1Mb           |   👍   |
+| mbc1/rom_2Mb           |   👍   |
+| mbc1/rom_4Mb           |   👍   |
+| mbc1/rom_8Mb           |   ❌   |
+| mbc1/rom_16Mb          |   ❌   |
+| mbc1/rom_512kb         |   👍   |

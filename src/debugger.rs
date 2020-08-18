@@ -4,7 +4,9 @@ use super::registers::Flags;
 use super::registers::Registers;
 use super::timers::Timers;
 
-fn print_instruction(instruction: u8, code: u16) {
+fn print_instruction(instruction: u8, memory: &Memory) {
+    let code = memory.get_byte_debug();
+    let pc = memory.get_program_counter();
     match instruction {
         0x00 => println!("NOP"),                           // 0x00
         0x01 => println!("LD BC, 0x{:X}", code),           // 0x01
@@ -240,7 +242,11 @@ fn print_instruction(instruction: u8, code: u16) {
         0xe7 => println!("RST 0x20"),                      // 0xe7
         0xe8 => println!("ADD SP,0x{:X}", code),           // 0xe8
         0xe9 => println!("JP HL"),                         // 0xe9
-        0xea => println!("LD (0x{:X}), A", code),          // 0xea
+        0xea => println!(
+            "LD (0x{:02X}{:02X}), A",
+            memory.read(pc + 2),
+            memory.read(pc + 1)
+        ), // 0xea
         0xeb => println!("UNKNOWN"),                       // 0xeb
         0xec => println!("UNKNOWN"),                       // 0xec
         0xed => println!("UNKNOWN"),                       // 0xed
@@ -332,14 +338,7 @@ pub fn print_debug_memory_info(memory: &Memory, timers: &Timers) {
             memory.get_lcd_status(),
             timers.scan_line_counter
         );
-        print_instruction(opcode, n16.swap_bytes());
-        if pc == 0x192 {
-            println!(
-                "--------------------------////////////////////////// {:X} {:X}",
-                memory.read(0xfdff),
-                memory.read(0xddff)
-            );
-        }
+        print_instruction(opcode, memory);
     }
     if DEBUG_MEMORY {
         let cromb = memory.memory_bank;
@@ -348,8 +347,8 @@ pub fn print_debug_memory_info(memory: &Memory, timers: &Timers) {
         let ire = memory.is_ram_enabled;
         let bm = memory.banking_mode.clone();
         println!("MEMORY: -----------------------------");
-        println!("Current ROM bank: {}", cromb);
-        println!("Current RAM bank: {}", cramb);
+        println!("Current ROM bank: {:X}", cromb);
+        println!("Current RAM bank: {:X}", cramb);
         println!("memory bank type: {:?}", mbt);
         println!("is_ram_enabled: {}", ire);
         println!("banking_mode: {:?}", bm);
