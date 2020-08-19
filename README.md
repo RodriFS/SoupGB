@@ -64,7 +64,7 @@ Tests status:
 | rapid_di_ei                      |   ❌   |
 | ret_cc_timing                    |   👍   |
 | ret_timing                       |   👍   |
-| reti_intr_timing                 |   ❌   |
+| reti_intr_timing                 |   👍   |
 | reti_timing                      |   👍   |
 | rst_timing                       |   👍   |
 | serial/boot_sclk_align-dmgABCmgb |   ❌   |

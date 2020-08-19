@@ -17,6 +17,7 @@ impl<'a> Gpu<'a> {
         let current_line = self.emu.memory.get_ly();
         let current_mode = self.emu.memory.get_lcd_status();
         let mut req_int = false;
+        let mut req_mode = None;
         match current_mode {
             LcdMode::ReadOAM => {
                 // mode 2
@@ -26,6 +27,7 @@ impl<'a> Gpu<'a> {
                         .dispatcher
                         .dispatch(Action::new_mode(LcdMode::ReadVRAM));
                     req_int = is_interrupt_requested(self.emu, 5);
+                    req_mode = Some(LcdMode::ReadVRAM);
                 }
             }
             LcdMode::ReadVRAM => {
@@ -35,6 +37,7 @@ impl<'a> Gpu<'a> {
                     self.emu
                         .dispatcher
                         .dispatch(Action::new_mode(LcdMode::HBlank));
+                    req_mode = Some(LcdMode::HBlank);
                     self.draw_scan_line();
                 }
             }
@@ -48,11 +51,13 @@ impl<'a> Gpu<'a> {
                         self.emu
                             .dispatcher
                             .dispatch(Action::new_mode(LcdMode::VBlank));
-                        self.emu.dispatcher.dispatch(Action::interrupt_request(0))
+                        self.emu.dispatcher.dispatch(Action::interrupt_request(0));
+                        req_mode = Some(LcdMode::VBlank);
                     } else {
                         self.emu
                             .dispatcher
                             .dispatch(Action::new_mode(LcdMode::ReadOAM));
+                        req_mode = Some(LcdMode::ReadOAM);
                     };
                     req_int = is_interrupt_requested(self.emu, 3);
                 }
@@ -68,11 +73,12 @@ impl<'a> Gpu<'a> {
                             .dispatch(Action::new_mode(LcdMode::ReadOAM));
                         self.emu.memory.write_scanline(0);
                         req_int = is_interrupt_requested(self.emu, 4);
+                        req_mode = Some(LcdMode::ReadOAM);
                     }
                 }
             }
         };
-        if req_int {
+        if req_int && req_mode.is_some() {
             self.emu.dispatcher.dispatch(Action::interrupt_request(1))
         }
         if current_line == self.emu.memory.get_lyc() {

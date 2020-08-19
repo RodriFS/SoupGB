@@ -130,9 +130,9 @@ pub fn ret_cc(condition: bool, emu: &mut Emulator) {
 
 pub fn reti(emu: &mut Emulator) {
   let address = emu.pop_from_stack();
-  emu.take_cycle();
   emu.memory.set_program_counter(address);
   emu.timers.master_enabled = true; // reti enables IME without delay
+  emu.take_cycle();
 }
 
 pub fn jp_cc_nn(condition: bool, emu: &mut Emulator) {

@@ -118,6 +118,20 @@ impl Emulator {
     self.take_cycle();
   }
 
+  pub fn push_to_stack_hi(&mut self, data: u16) {
+    let bytes = data.to_be_bytes();
+    self.memory.decrement_stack_pointer(1);
+    self.memory.write(self.memory.stack_pointer, bytes[0]);
+    self.take_cycle();
+  }
+
+  pub fn push_to_stack_lo(&mut self, data: u16) {
+    let bytes = data.to_be_bytes();
+    self.memory.decrement_stack_pointer(1);
+    self.memory.write(self.memory.stack_pointer, bytes[1]);
+    self.take_cycle();
+  }
+
   pub fn pop_from_stack(&mut self) -> u16 {
     let byte1 = self.memory.read(self.memory.stack_pointer);
     self.memory.increment_stack_pointer(1);
