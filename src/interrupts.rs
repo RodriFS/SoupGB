@@ -7,8 +7,8 @@ pub fn update(emu: &mut Emulator) {
     let interrupt_enable = emu.memory.read(0xffff);
     if request > 0 && emu.timers.master_enabled {
         for bit in 0..5 {
-            emu.timers.is_halted = false;
             if get_bit_at(request, bit) && get_bit_at(interrupt_enable, bit) {
+                emu.timers.is_halted = false;
                 emu.timers.clear_master_enabled();
                 interrupt_execution(emu, request, bit);
                 break;

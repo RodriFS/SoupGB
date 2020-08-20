@@ -2004,8 +2004,8 @@ fn execute_opcode(emu: &mut Emulator, opcode: u8, is_callback: bool) {
 
 pub fn update(emulator: &mut Emulator) {
     if !emulator.timers.is_halted {
-        let opcode = emulator.fetch_opcode();
         emulator.take_cycle();
+        let opcode = emulator.fetch_opcode();
         return execute_opcode(emulator, opcode, false);
     }
     emulator.take_cycle();

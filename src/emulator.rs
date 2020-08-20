@@ -36,6 +36,7 @@ impl Dispatcher {
 }
 
 pub struct Emulator {
+  pub debug: bool,
   pub registers: Registers,
   pub memory: Memory,
   pub timers: Timers,
@@ -46,12 +47,17 @@ pub struct Emulator {
 impl Emulator {
   pub fn default() -> Self {
     Self {
+      debug: false,
       registers: Registers::default(),
       memory: Memory::default(),
       timers: Timers::default(),
       frame_buffer: Vec::with_capacity(SCREEN_WIDTH * SCREEN_HEIGHT),
       dispatcher: Dispatcher::default(),
     }
+  }
+
+  pub fn debug(&mut self) {
+    self.debug = true;
   }
 
   pub fn take_cycle(&mut self) {

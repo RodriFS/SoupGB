@@ -249,7 +249,7 @@ pub fn update(emu: &mut Emulator, frame_cycles: u32) {
     if !emu.memory.is_lcd_enabled() {
         emu.timers.scan_line_counter = 0;
         emu.memory.write_scanline(0);
-        emu.memory.set_lcd_status(LcdMode::VBlank);
+        emu.memory.set_lcd_status(LcdMode::HBlank); // Check
         emu.frame_buffer.clear();
         return;
     }
