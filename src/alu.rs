@@ -101,63 +101,63 @@ pub fn swap_n(data: u8, reg: &mut Registers) -> u8 {
   result
 }
 
-pub fn jr_cc_n(condition: bool, emu: &mut Emulator) {
-  let address = emu.get_byte() as i8;
+pub fn jr_cc_n(condition: bool, ctx: &mut Emulator) {
+  let address = ctx.get_byte() as i8;
   if condition {
-    let result = emu
+    let result = ctx
       .memory
       .get_program_counter()
       .wrapping_add(address as u16);
-    emu.take_cycle();
-    emu.memory.set_program_counter(result);
+    ctx.take_cycle();
+    ctx.memory.set_program_counter(result);
   }
 }
 
-pub fn ret(emu: &mut Emulator) {
-  let address = emu.pop_from_stack();
-  emu.take_cycle();
-  emu.memory.set_program_counter(address);
+pub fn ret(ctx: &mut Emulator) {
+  let address = ctx.pop_from_stack();
+  ctx.take_cycle();
+  ctx.memory.set_program_counter(address);
 }
 
-pub fn ret_cc(condition: bool, emu: &mut Emulator) {
-  emu.take_cycle();
+pub fn ret_cc(condition: bool, ctx: &mut Emulator) {
+  ctx.take_cycle();
   if condition {
-    let address = emu.pop_from_stack();
-    emu.take_cycle();
-    emu.memory.set_program_counter(address);
+    let address = ctx.pop_from_stack();
+    ctx.take_cycle();
+    ctx.memory.set_program_counter(address);
   }
 }
 
-pub fn reti(emu: &mut Emulator) {
-  let address = emu.pop_from_stack();
-  emu.memory.set_program_counter(address);
-  emu.timers.master_enabled = true; // reti enables IME without delay
-  emu.take_cycle();
+pub fn reti(ctx: &mut Emulator) {
+  let address = ctx.pop_from_stack();
+  ctx.memory.set_program_counter(address);
+  ctx.timers.master_enabled = true; // reti enables IME without delay
+  ctx.take_cycle();
 }
 
-pub fn jp_cc_nn(condition: bool, emu: &mut Emulator) {
-  let address = emu.get_word();
+pub fn jp_cc_nn(condition: bool, ctx: &mut Emulator) {
+  let address = ctx.get_word();
   if condition {
-    emu.take_cycle();
-    emu.memory.set_program_counter(address);
+    ctx.take_cycle();
+    ctx.memory.set_program_counter(address);
   }
 }
 
-pub fn call_cc_nn(condition: bool, emu: &mut Emulator) {
-  let address = emu.get_word();
+pub fn call_cc_nn(condition: bool, ctx: &mut Emulator) {
+  let address = ctx.get_word();
   if condition {
-    emu.take_cycle();
-    let next_pc = emu.memory.get_program_counter();
-    emu.push_to_stack(next_pc);
-    emu.memory.set_program_counter(address);
+    ctx.take_cycle();
+    let next_pc = ctx.memory.get_program_counter();
+    ctx.push_to_stack(next_pc);
+    ctx.memory.set_program_counter(address);
   }
 }
 
-pub fn rst_n(new_address: u16, emu: &mut Emulator) {
-  emu.take_cycle();
-  let current_address = emu.memory.get_program_counter();
-  emu.push_to_stack(current_address);
-  emu.memory.set_program_counter(new_address);
+pub fn rst_n(new_address: u16, ctx: &mut Emulator) {
+  ctx.take_cycle();
+  let current_address = ctx.memory.get_program_counter();
+  ctx.push_to_stack(current_address);
+  ctx.memory.set_program_counter(new_address);
 }
 
 pub fn rlc_n(data: u8, reg: &mut Registers) -> u8 {
