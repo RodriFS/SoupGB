@@ -29,7 +29,7 @@
           "kind": "bin"
         }
       },
-      "args": ["./test_rom/mooneye/acceptance/reti_intr_timing.gb"],
+      "args": ["./test_rom/L_o_Z.gb"],
       "cwd": "${workspaceFolder}"
     },
     {

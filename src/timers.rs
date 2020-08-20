@@ -29,39 +29,39 @@ impl Timers {
     }
 }
 
-pub fn update_div_counter(emu: &mut Emulator, data: u16) {
-    let div_counter = emu.memory.get_div_counter();
-    let result = div_counter.wrapping_add(data);
-    emu.memory.set_div_counter(result);
+pub fn update_div_counter(ctx: &mut Emulator, cycles: u16) {
+    let div_counter = ctx.memory.get_div_counter();
+    let result = div_counter.wrapping_add(cycles);
+    ctx.memory.set_div_counter(result);
 }
 
-pub fn cc_tima_reload(emu: &mut Emulator) {
-    if emu.memory.sched_tima_reload {
-        emu.memory.set_tima(emu.memory.get_tma());
-        request_interrupt(emu, 2);
-        emu.memory.sched_tima_reload = false;
+pub fn cc_tima_reload(ctx: &mut Emulator) {
+    if ctx.memory.sched_tima_reload {
+        ctx.memory.set_tima(ctx.memory.get_tma());
+        request_interrupt(ctx, 2);
+        ctx.memory.sched_tima_reload = false;
     }
 }
 
-pub fn update_tima(emu: &mut Emulator) {
-    cc_tima_reload(emu);
+pub fn update_tima(ctx: &mut Emulator) {
+    cc_tima_reload(ctx);
     let selected_bit =
-        (emu.memory.get_div_counter() >> emu.memory.tac_freq()) & 0b1 & emu.memory.tac_enabled();
-    if !selected_bit & emu.memory.prev_bit == 1 {
-        let new_tima = emu.memory.get_tima().wrapping_add(1);
-        emu.memory.set_tima(new_tima);
+        (ctx.memory.get_div_counter() >> ctx.memory.tac_freq()) & 0b1 & ctx.memory.tac_enabled();
+    if !selected_bit & ctx.memory.prev_bit == 1 {
+        let new_tima = ctx.memory.get_tima().wrapping_add(1);
+        ctx.memory.set_tima(new_tima);
         if new_tima == 0 {
-            emu.memory.sched_tima_reload = true;
+            ctx.memory.sched_tima_reload = true;
         }
     }
-    emu.memory.prev_bit = selected_bit;
+    ctx.memory.prev_bit = selected_bit;
 }
 
-pub fn update(emu: &mut Emulator, opcode_cycles: u32) {
-    if emu.timers.sched_master_enabled {
-        emu.timers.master_enabled = true;
-        emu.timers.sched_master_enabled = false;
+pub fn update(ctx: &mut Emulator, opcode_cycles: u32) {
+    if ctx.timers.sched_master_enabled {
+        ctx.timers.master_enabled = true;
+        ctx.timers.sched_master_enabled = false;
     }
-    update_div_counter(emu, opcode_cycles as u16);
-    update_tima(emu);
+    update_div_counter(ctx, opcode_cycles as u16);
+    update_tima(ctx);
 }

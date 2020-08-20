@@ -653,7 +653,12 @@ impl Memory {
             0xfe00..=0xfe9f if self.dma_copy_in_progress => {}
             0xa000..=0xbfff if !self.is_ram_enabled => {}
             0xfe00..=0xfe9f if self.dma_copy_in_progress => {}
+            0xff04 => {
+                self.write_io_ports(0xff03, 0);
+                self.write_io_ports(0xff04, 0);
+            }
             0xff05 if self.sched_tima_reload => {}
+            0xff44 => self.write_io_ports(address, 0),
             _ => self.write_unchecked(address, data),
         }
     }
@@ -669,7 +674,6 @@ impl Memory {
             0xe000..=0xfdff => self.write_echo(address, data),
             0xfe00..=0xfe9f => self.write_oam(address, data),
             0xfea0..=0xfeff => {}
-            0xff00 | 0xff20 => self.write_io_ports(address, data | 0b1100_0000),
             0xff01 => {
                 self.write_io_ports(address, data);
                 self.write_io_ports(0xff02, 0x81);
@@ -678,25 +682,9 @@ impl Memory {
                 print!("{}", c);
                 let _ = out.flush();
             }
-            0xff02 => self.write_io_ports(address, data | 0b0111_1110),
-            0xff04 => {
-                self.write_io_ports(0xff03, 0);
-                self.write_io_ports(0xff04, 0);
-            }
-            0xff07 => self.write_io_ports(address, data | 0b1111_1000),
-            0xff0f => self.write_io_ports(address, data | 0b1110_0000),
-            0xff10 | 0xff41 => self.write_io_ports(address, data | 0b1000_0000),
-            0xff1a => self.write_io_ports(address, data | 0b0111_1111),
-            0xff1c => self.write_io_ports(address, data | 0b1001_1111),
-            0xff23 => self.write_io_ports(address, data | 0b0011_1111),
-            0xff26 => self.write_io_ports(address, data | 0b0111_0000),
-            0xff44 => self.write_io_ports(address, 0),
             0xff46 => {
                 self.start_dma_transfer(data);
                 self.write_io_ports(address, data)
-            }
-            0xff03 | 0xff08..=0xff0e | 0xff15 | 0xff1f | 0xff27..=0xff29 | 0xff4c..=0xff7f => {
-                self.write_io_ports(address, data | 0b1111_1111)
             }
             0xff80..=0xfffe => self.write_hram(address, data),
             0xffff => self.ie_register = data,
