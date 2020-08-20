@@ -29,9 +29,9 @@ impl Timers {
     }
 }
 
-pub fn update_div_counter(emu: &mut Emulator, data: u16) {
+pub fn update_div_counter(emu: &mut Emulator, cycles: u16) {
     let div_counter = emu.memory.get_div_counter();
-    let result = div_counter.wrapping_add(data);
+    let result = div_counter.wrapping_add(cycles);
     emu.memory.set_div_counter(result);
 }
 

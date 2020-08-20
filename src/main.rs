@@ -27,6 +27,7 @@ pub fn main() {
 
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
     let buf_len = SCREEN_WIDTH * SCREEN_HEIGHT;
+    emulator.debug();
     while window.is_open() && !window.is_key_down(Key::Escape) {
         print_debug_registers_info(emulator.debug, &emulator.registers);
         print_debug_memory_info(emulator.debug, &emulator.memory, &emulator.timers);

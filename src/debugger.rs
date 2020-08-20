@@ -355,14 +355,6 @@ pub fn print_debug_memory_info(debug: bool, memory: &Memory, timers: &Timers) {
         println!("memory bank type: {:?}", mbt);
         println!("is_ram_enabled: {}", ire);
         println!("banking_mode: {:?}", bm);
-        for address in 0xFFD0..0xFFDF {
-            print!("{:02X} ", memory.read(address));
-        }
-        println!("\n");
-        for address in 0xFFF0..0xFFFE {
-            print!("{:02X} ", memory.read(address));
-        }
-        println!("\n");
     }
     if DEBUG_GPU {
         let lcdc = memory.read(0xff40);
