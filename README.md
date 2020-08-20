@@ -25,8 +25,8 @@ Tests status:
 | call_timing2                     |   👍   |
 | di_timing-GS                     |   ❌   |
 | div_timing                       |   👍   |
-| ei_sequence                      |   ❌   |
-| ei_timing                        |   ❌   |
+| ei_sequence                      |   👍   |
+| ei_timing                        |   👍   |
 | halt_ime0_ei                     |   👍   |
 | halt_ime0_nointr_timing          |   👍   |
 | halt_ime1_timing                 |   👍   |
@@ -51,7 +51,7 @@ Tests status:
 | bits/reg_f                       |   👍   |
 | bits/unused_hwio-GS              |   ❌   |
 | instr/daa                        |   👍   |
-| interrupts/ie_push               |   ❌   |
+| interrupts/ie_push               |   👍   |
 | oam_dma/basic                    |   👍   |
 | oam_dma/reg_read                 |   👍   |
 | oam_dma/sources-GS               |   ❌   |
