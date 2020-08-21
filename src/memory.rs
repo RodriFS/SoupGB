@@ -390,7 +390,7 @@ impl Memory {
         self.write(0xff41, clear_bit_at(lcd_status, 2));
     }
 
-    pub fn increment_scanline(&mut self) -> u8 {
+    pub fn increment_ly(&mut self) -> u8 {
         let mut scan_line = self.read(0xff44);
         scan_line = scan_line.wrapping_add(1);
         self.write_scanline(scan_line);
@@ -641,7 +641,11 @@ impl Memory {
             0xe000..=0xfdff => self.read_echo(address),
             0xfe00..=0xfe9f => self.read_oam(address),
             0xfea0..=0xfeff => 0,
-            0xff00..=0xff7f => self.read_io_ports(address),
+            0xff00..=0xff0e => self.read_io_ports(address),
+            0xff0f => self.read_io_ports(address) | 0b1110_0000,
+            0xff10..=0xff40 => self.read_io_ports(address),
+            0xff41 => self.read_io_ports(address) | 0b1000_0000,
+            0xff42..=0xff7f => self.read_io_ports(address),
             0xff80..=0xfffe => self.read_hram(address),
             0xffff => self.ie_register,
             _ => panic!("Unsupported memory address read: {:04X}", address),

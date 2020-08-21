@@ -5,21 +5,23 @@ use super::utils::*;
 pub fn update(ctx: &mut Emulator) {
     let request = ctx.memory.read(0xff0f);
     let interrupt_enable = ctx.memory.read(0xffff);
-    if request > 0 && ctx.timers.master_enabled {
+    if request > 0 {
         for bit in 0..5 {
             if get_bit_at(request, bit) && get_bit_at(interrupt_enable, bit) {
                 ctx.timers.is_halted = false;
-                ctx.timers.clear_master_enabled();
-                let cancelled = interrupt_execution(ctx, request, bit);
-                if !cancelled {
-                    break;
+                if ctx.timers.master_enabled {
+                    ctx.timers.clear_master_enabled();
+                    let cancelled = interrupt_execution(ctx, request, bit);
+                    if !cancelled {
+                        break;
+                    }
                 }
             }
         }
     }
 }
 
-pub fn is_interrupt_requested(ctx: &Emulator, bit: u8) -> bool {
+pub fn stat_irq(ctx: &Emulator, bit: u8) -> bool {
     let lcd_status = ctx.memory.read(0xff41);
     get_bit_at(lcd_status, bit)
 }

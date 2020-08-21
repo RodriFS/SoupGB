@@ -328,13 +328,11 @@ pub fn print_debug_memory_info(debug: bool, memory: &Memory, timers: &Timers) {
             memory.read(sp)
         );
         println!("00:{:04X}: | {:02X}{:04X}", pc, opcode, n16);
+        let ie = memory.read(0xffff);
+        let ifl = memory.read(0xff0f);
         println!(
-            "IF: {:02X}|{:b}, IE: {:02X}|{:b}, IME: {}",
-            memory.read(0xff0f),
-            memory.read(0xff0f),
-            memory.read(0xffff),
-            memory.read(0xffff),
-            timers.master_enabled
+            "IE: {:02X}|{:b}, IF: {:02X}|{:b}, IME: {}",
+            ie, ie, ifl, ifl, timers.master_enabled
         );
         println!(
             "period: {:?} : {}",
@@ -360,8 +358,13 @@ pub fn print_debug_memory_info(debug: bool, memory: &Memory, timers: &Timers) {
         let lcdc = memory.read(0xff40);
         let lcd_stat = memory.read(0xff41);
         let ly = memory.read(0xff44);
+        let lyc = memory.read(0xff45);
         println!("GPU: -----------------------------");
-        println!("LCDC: {:02X}  STAT: {:02X}  LY: {}", lcdc, lcd_stat, ly);
+        println!(
+            "LCDC: {:02X}  STAT: {:02X}  LY: {:X} ({})",
+            lcdc, lcd_stat, ly, ly
+        );
+        println!("LYC {:02X}", lyc);
     }
     if DEBUG_TIMERS {
         let cf = memory.get_tac();

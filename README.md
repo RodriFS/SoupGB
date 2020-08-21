@@ -31,7 +31,7 @@ Tests status:
 | halt_ime0_nointr_timing          |   👍   |
 | halt_ime1_timing                 |   👍   |
 | halt_ime1_timing2-GS             |   👍   |
-| if_ie_registers                  |   ❌   |
+| if_ie_registers                  |   👍   |
 | intr_timing                      |   👍   |
 | jp_cc_timing                     |   👍   |
 | jp_timing                        |   👍   |
@@ -44,7 +44,7 @@ Tests status:
 | rapid_di_ei                      |   ❌   |
 | ret_cc_timing                    |   👍   |
 | ret_timing                       |   👍   |
-| reti_intr_timing                 |   ❌   |
+| reti_intr_timing                 |   👍   |
 | reti_timing                      |   👍   |
 | rst_timing                       |   👍   |
 | bits/mem_oam                     |   👍   |
@@ -58,9 +58,9 @@ Tests status:
 | ppu/hblank_ly_scx_timing-GS      |   ❌   |
 | ppu/intr_1_2_timing-GS           |   ❌   |
 | ppu/intr_2_0_timing              |   ❌   |
-| ppu/intr_2_mode0_timing          |   ❌   |
+| ppu/intr_2_mode0_timing          |   👍   |
 | ppu/intr_2_mode0_timing_sprites  |   ❌   |
-| ppu/intr_2_mode3_timing          |   ❌   |
+| ppu/intr_2_mode3_timing          |   👍   |
 | ppu/intr_2_oam_ok_timing         |   ❌   |
 | ppu/lcdon_timing-GS              |   ❌   |
 | ppu/lcdon_write_timing-GS        |   ❌   |
