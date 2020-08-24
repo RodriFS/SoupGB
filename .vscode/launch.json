@@ -29,7 +29,7 @@
           "kind": "bin"
         }
       },
-      "args": ["./test_rom/mooneye/acceptance/ppu/intr_2_mode0_timing.gb"],
+      "args": ["test_rom/halt_bug.gb"],
       "cwd": "${workspaceFolder}"
     },
     {

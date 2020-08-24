@@ -6,7 +6,7 @@ use super::timers::Timers;
 
 fn print_instruction(instruction: u8, memory: &Memory) {
     let code = memory.get_byte_debug();
-    let pc = memory.get_program_counter();
+    let pc = memory.get_pc();
     match instruction {
         0x00 => println!("NOP"),                                          // 0x00
         0x01 => println!("LD BC, 0x{:X}", code),                          // 0x01
@@ -318,8 +318,8 @@ pub fn print_debug_memory_info(debug: bool, memory: &Memory, timers: &Timers) {
     if DEBUG_CPU {
         let opcode = memory.get_byte_debug();
         let n16 = memory.get_word_debug();
-        let pc = memory.get_program_counter();
-        let sp = memory.get_stack_pointer();
+        let pc = memory.get_pc();
+        let sp = memory.get_sp();
         println!(
             "PC: {:04X}  SP: {:04X} -> {:02X}{:02X}",
             pc,
@@ -332,7 +332,7 @@ pub fn print_debug_memory_info(debug: bool, memory: &Memory, timers: &Timers) {
         let ifl = memory.read(0xff0f);
         println!(
             "IE: {:02X}|{:b}, IF: {:02X}|{:b}, IME: {}",
-            ie, ie, ifl, ifl, timers.master_enabled
+            ie, ie, ifl, ifl, timers.ime
         );
         println!(
             "period: {:?} : {}",
@@ -340,6 +340,13 @@ pub fn print_debug_memory_info(debug: bool, memory: &Memory, timers: &Timers) {
             timers.scan_line_counter
         );
         print_instruction(opcode, memory);
+        let pc = memory.get_pc();
+        if pc == 0xffb8 {
+            for word in 0x8000..0x9bff {
+                print!("[{:04X} -> {:02X}]", word, memory.read_unchecked(word));
+            }
+            println!("\n");
+        }
     }
     if DEBUG_MEMORY {
         let cromb = memory.memory_bank;

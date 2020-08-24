@@ -6,7 +6,7 @@ Tests status:
 | -------------- | :----: |
 | cpu_instr      |   👍   |
 | instr_timing   |   👍   |
-| halt_bug       |   ❌   |
+| halt_bug       |   👍   |
 | interrupt_time |   ❌   |
 | mem_timing     |   👍   |
 | mem_timing-2   |   👍   |
@@ -28,9 +28,9 @@ Tests status:
 | ei_sequence                      |   👍   |
 | ei_timing                        |   👍   |
 | halt_ime0_ei                     |   👍   |
-| halt_ime0_nointr_timing          |   👍   |
+| halt_ime0_nointr_timing          |   ❌   |
 | halt_ime1_timing                 |   👍   |
-| halt_ime1_timing2-GS             |   👍   |
+| halt_ime1_timing2-GS             |   ❌   |
 | if_ie_registers                  |   👍   |
 | intr_timing                      |   👍   |
 | jp_cc_timing                     |   👍   |

@@ -16,6 +16,14 @@ pub enum LcdMode {
     ReadVRAM,
 }
 
+#[derive(PartialEq)]
+pub enum PrevStatCond {
+    VBlank,
+    LYC(u8),
+    HBLANK(u8),
+    OAM,
+}
+
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone)]
 pub enum MBC {
@@ -55,6 +63,7 @@ pub struct Memory {
     pub prev_bit: u16,
     pub sched_tima_reload: bool,
     pub sched_lcd_mode: Option<LcdMode>,
+    pub prev_stat_condition: PrevStatCond,
 }
 
 // General Initialization functions
@@ -111,6 +120,7 @@ impl Memory {
             prev_bit: 0,
             sched_tima_reload: false,
             sched_lcd_mode: None,
+            prev_stat_condition: PrevStatCond::OAM, // everything following oam recognized.
         }
     }
 }
@@ -118,13 +128,13 @@ impl Memory {
 // General CPU functions
 impl Memory {
     pub fn get_word(&mut self) -> u16 {
-        let c = self.get_program_counter();
-        self.increment_program_counter(2);
+        let c = self.get_pc();
+        self.inc_pc(2);
         BigEndian::read_u16(&[self.read(c + 1), self.read(c)])
     }
 
     pub fn get_byte_debug(&self) -> u8 {
-        self.read_memory_at_current_location()
+        self.read(self.get_pc())
     }
 
     pub fn write_word(&mut self, address: u16, data: u16) {
@@ -134,12 +144,8 @@ impl Memory {
     }
 
     pub fn get_word_debug(&self) -> u16 {
-        let c = self.get_program_counter();
+        let c = self.get_pc();
         BigEndian::read_u16(&[self.read(c + 1), self.read(c)])
-    }
-
-    pub fn read_memory_at_current_location(&self) -> u8 {
-        self.read(self.get_program_counter())
     }
 
     pub fn load_rom(&mut self, cartridge_memory: Vec<u8>) {
@@ -171,53 +177,54 @@ impl Memory {
         self.banking_mode = mode;
     }
 
-    pub fn push_to_stack(&mut self, data: u16) {
-        self.decrement_stack_pointer(2);
+    pub fn s_push(&mut self, data: u16) {
+        self.dec_sp(2);
         let bytes = data.to_be_bytes();
         self.write(self.stack_pointer, bytes[1]);
         self.write(self.stack_pointer.wrapping_add(1), bytes[0]);
     }
 
-    pub fn pop_from_stack(&mut self) -> u16 {
+    pub fn s_pop(&mut self) -> u16 {
         let byte1 = self.read(self.stack_pointer);
         let byte2 = self.read(self.stack_pointer.wrapping_add(1));
-        self.increment_stack_pointer(2);
+        self.inc_sp(2);
         (byte2 as u16) << 8 | byte1 as u16
     }
 
-    pub fn set_program_counter(&mut self, address: u16) {
+    pub fn set_pc(&mut self, address: u16) {
         self.program_counter = address;
     }
 
-    pub fn set_stack_pointer(&mut self, address: u16) {
+    pub fn set_sp(&mut self, address: u16) {
         self.stack_pointer = address;
     }
 
-    pub fn increment_program_counter(&mut self, increment: u16) {
+    pub fn inc_pc(&mut self, increment: u16) {
         self.program_counter = self.program_counter.wrapping_add(increment);
     }
 
-    pub fn increment_stack_pointer(&mut self, increment: u16) {
+    pub fn dec_pc(&mut self, decrement: u16) {
+        self.program_counter = self.program_counter.wrapping_sub(decrement);
+    }
+
+    pub fn inc_sp(&mut self, increment: u16) {
         self.stack_pointer = self.stack_pointer.wrapping_add(increment);
     }
 
-    pub fn decrement_stack_pointer(&mut self, decrement: u16) {
+    pub fn dec_sp(&mut self, decrement: u16) {
         self.stack_pointer = self.stack_pointer.wrapping_sub(decrement);
     }
 
-    pub fn add_to_program_counter(&mut self, addition: u16) -> u16 {
-        self.program_counter.wrapping_add(addition)
-    }
-
-    pub fn get_program_counter(&self) -> u16 {
+    pub fn get_pc(&self) -> u16 {
         self.program_counter
     }
 
-    pub fn get_stack_pointer(&self) -> u16 {
+    pub fn get_sp(&self) -> u16 {
         self.stack_pointer
     }
 
-    pub fn write_scanline(&mut self, data: u8) {
+    pub fn write_ly(&mut self, data: u8) {
+        self.check_ly_eq_lyc();
         self.io_ports[0x44] = data;
     }
 }
@@ -353,7 +360,7 @@ impl Memory {
             0x1 => LcdMode::VBlank,
             0x2 => LcdMode::ReadOAM,
             0x3 => LcdMode::ReadVRAM,
-            _ => panic!("Unreachable lcd status"),
+            _ => unreachable!(),
         }
     }
 
@@ -377,24 +384,32 @@ impl Memory {
                 set_bit_at(temp_status, 0)
             }
         };
-        self.write(0xff41, new_status);
+        self.write_unchecked(0xff41, new_status);
     }
 
     pub fn set_coincidence_flag(&mut self) {
         let lcd_status = self.read(0xff41);
-        self.write(0xff41, set_bit_at(lcd_status, 2));
+        self.write_unchecked(0xff41, set_bit_at(lcd_status, 2));
     }
 
     pub fn clear_coincidence_flag(&mut self) {
         let lcd_status = self.read(0xff41);
-        self.write(0xff41, clear_bit_at(lcd_status, 2));
+        self.write_unchecked(0xff41, clear_bit_at(lcd_status, 2));
     }
 
     pub fn increment_ly(&mut self) -> u8 {
         let mut scan_line = self.read(0xff44);
         scan_line = scan_line.wrapping_add(1);
-        self.write_scanline(scan_line);
+        self.write_ly(scan_line);
         scan_line
+    }
+
+    pub fn check_ly_eq_lyc(&mut self) {
+        if self.get_ly() == self.get_lyc() {
+            self.set_coincidence_flag();
+        } else {
+            self.clear_coincidence_flag();
+        }
     }
 
     pub fn get_ly(&self) -> u8 {
@@ -420,10 +435,8 @@ impl Memory {
             self.dma_cursor = 0;
             self.dma_copy_address = 0;
         } else {
-            self.write_unchecked(
-                0xfe00 + self.dma_cursor,
-                self.read_unchecked(self.dma_copy_address + self.dma_cursor),
-            );
+            let data = self.read_unchecked(self.dma_copy_address + self.dma_cursor);
+            self.write_unchecked(0xfe00 + self.dma_cursor, data);
             self.dma_cursor += 1;
         }
     }
@@ -662,7 +675,15 @@ impl Memory {
                 self.write_io_ports(0xff04, 0);
             }
             0xff05 if self.sched_tima_reload => {}
-            0xff44 => self.write_io_ports(address, 0),
+            0xff41 => {
+                let stat_register = self.read_unchecked(address) & 0b1000_0111;
+                let new_stat_register = data & 0b0111_1000;
+                self.write_io_ports(address, stat_register | new_stat_register)
+            }
+            0xff44 => {
+                self.check_ly_eq_lyc();
+                self.write_io_ports(address, 0);
+            }
             _ => self.write_unchecked(address, data),
         }
     }
@@ -672,7 +693,7 @@ impl Memory {
             0x8000..=0x9FFF => self.write_vram(address, data),
             0xa000..=0xbfff if self.banking_mode == Bmode::ROM => self.write_ram(address, 0, data),
             0xa000..=0xbfff if self.banking_mode == Bmode::RAM => {
-                self.write_ram(address, self.get_bank2_as_low(), data)
+                self.write_ram(address, self.get_bank2_as_low(), data);
             }
             0xc000..=0xdfff => self.write_wram(address, data),
             0xe000..=0xfdff => self.write_echo(address, data),
@@ -686,9 +707,20 @@ impl Memory {
                 print!("{}", c);
                 let _ = out.flush();
             }
+            0xff40 => {
+                let enabling_lcd = get_bit_at(data, 7);
+                if enabling_lcd {
+                    self.check_ly_eq_lyc();
+                }
+                self.write_io_ports(address, data);
+            }
+            0xff45 => {
+                self.check_ly_eq_lyc();
+                self.write_io_ports(address, data);
+            }
             0xff46 => {
                 self.start_dma_transfer(data);
-                self.write_io_ports(address, data)
+                self.write_io_ports(address, data);
             }
             0xff80..=0xfffe => self.write_hram(address, data),
             0xffff => self.ie_register = data,

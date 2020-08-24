@@ -104,34 +104,31 @@ pub fn swap_n(data: u8, reg: &mut Registers) -> u8 {
 pub fn jr_cc_n(condition: bool, ctx: &mut Emulator) {
   let address = ctx.get_byte() as i8;
   if condition {
-    let result = ctx
-      .memory
-      .get_program_counter()
-      .wrapping_add(address as u16);
+    let result = ctx.memory.get_pc().wrapping_add(address as u16);
     ctx.take_cycle();
-    ctx.memory.set_program_counter(result);
+    ctx.memory.set_pc(result);
   }
 }
 
 pub fn ret(ctx: &mut Emulator) {
-  let address = ctx.pop_from_stack();
+  let address = ctx.s_pop();
   ctx.take_cycle();
-  ctx.memory.set_program_counter(address);
+  ctx.memory.set_pc(address);
 }
 
 pub fn ret_cc(condition: bool, ctx: &mut Emulator) {
   ctx.take_cycle();
   if condition {
-    let address = ctx.pop_from_stack();
+    let address = ctx.s_pop();
     ctx.take_cycle();
-    ctx.memory.set_program_counter(address);
+    ctx.memory.set_pc(address);
   }
 }
 
 pub fn reti(ctx: &mut Emulator) {
-  let address = ctx.pop_from_stack();
-  ctx.memory.set_program_counter(address);
-  ctx.timers.master_enabled = true; // reti enables IME without delay
+  let address = ctx.s_pop();
+  ctx.memory.set_pc(address);
+  ctx.timers.ime = true; // reti enables IME without delay
   ctx.take_cycle();
 }
 
@@ -139,7 +136,7 @@ pub fn jp_cc_nn(condition: bool, ctx: &mut Emulator) {
   let address = ctx.get_word();
   if condition {
     ctx.take_cycle();
-    ctx.memory.set_program_counter(address);
+    ctx.memory.set_pc(address);
   }
 }
 
@@ -147,17 +144,17 @@ pub fn call_cc_nn(condition: bool, ctx: &mut Emulator) {
   let address = ctx.get_word();
   if condition {
     ctx.take_cycle();
-    let next_pc = ctx.memory.get_program_counter();
-    ctx.push_to_stack(next_pc);
-    ctx.memory.set_program_counter(address);
+    let next_pc = ctx.memory.get_pc();
+    ctx.s_push(next_pc);
+    ctx.memory.set_pc(address);
   }
 }
 
 pub fn rst_n(new_address: u16, ctx: &mut Emulator) {
   ctx.take_cycle();
-  let current_address = ctx.memory.get_program_counter();
-  ctx.push_to_stack(current_address);
-  ctx.memory.set_program_counter(new_address);
+  let current_address = ctx.memory.get_pc();
+  ctx.s_push(current_address);
+  ctx.memory.set_pc(new_address);
 }
 
 pub fn rlc_n(data: u8, reg: &mut Registers) -> u8 {

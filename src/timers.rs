@@ -4,9 +4,10 @@ use super::interrupts::request_interrupt;
 pub struct Timers {
     pub divider_frequency: u32,
     pub scan_line_counter: u32,
-    pub master_enabled: bool,
-    pub sched_master_enabled: bool,
+    pub ime: bool,
+    pub sched_ime: bool,
     pub is_halted: bool,
+    pub halt_bug: bool,
 }
 
 impl Timers {
@@ -15,17 +16,18 @@ impl Timers {
         Self {
             scan_line_counter: 0,
             divider_frequency,
-            master_enabled: false,
-            sched_master_enabled: false,
+            ime: false,
+            sched_ime: false,
             is_halted: false,
+            halt_bug: false,
         }
     }
-    pub fn set_master_enabled_on(&mut self) {
-        self.sched_master_enabled = true;
+    pub fn set_ime(&mut self) {
+        self.sched_ime = true;
     }
-    pub fn clear_master_enabled(&mut self) {
-        self.master_enabled = false;
-        self.sched_master_enabled = false;
+    pub fn clear_ime(&mut self) {
+        self.ime = false;
+        self.sched_ime = false;
     }
 }
 
@@ -58,9 +60,9 @@ pub fn update_tima(ctx: &mut Emulator) {
 }
 
 pub fn update(ctx: &mut Emulator, opcode_cycles: u32) {
-    if ctx.timers.sched_master_enabled {
-        ctx.timers.master_enabled = true;
-        ctx.timers.sched_master_enabled = false;
+    if ctx.timers.sched_ime {
+        ctx.timers.ime = true;
+        ctx.timers.sched_ime = false;
     }
     update_div_counter(ctx, opcode_cycles as u16);
     update_tima(ctx);
