@@ -32,7 +32,6 @@ pub fn update(ctx: &mut Emulator) {
         for bit in 0..5 {
             if get_bit_at(i_f, bit) && get_bit_at(i_e, bit) {
                 if ctx.timers.is_halted && !ctx.timers.ime {
-                    ctx.take_cycle();
                     ctx.timers.halt_bug = true;
                 }
                 ctx.timers.is_halted = false;
@@ -64,13 +63,10 @@ pub fn stat_irq(ctx: &Emulator, bit: u8) -> StatCond {
 }
 
 pub fn interrupt_execution(ctx: &mut Emulator, interrupt: u8) -> bool {
-    ctx.take_cycle();
-    ctx.take_cycle();
     let pc = ctx.memory.get_pc();
     ctx.s_push_hi(pc);
     let interrupt_enable = ctx.memory.read(0xffff);
     if !get_bit_at(interrupt_enable, interrupt) {
-        ctx.take_cycle();
         ctx.memory.set_pc(0);
         true
     } else {
@@ -87,7 +83,6 @@ pub fn interrupt_execution(ctx: &mut Emulator, interrupt: u8) -> bool {
             _ => return true,
         };
         ctx.memory.set_pc(new_pc as u16);
-        ctx.take_cycle();
         false
     }
 }

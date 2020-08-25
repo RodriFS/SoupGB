@@ -32,7 +32,7 @@ Tests status:
 | halt_ime1_timing                 |   👍   |
 | halt_ime1_timing2-GS             |   ❌   |
 | if_ie_registers                  |   👍   |
-| intr_timing                      |   👍   |
+| intr_timing                      |   ❌   |
 | jp_cc_timing                     |   👍   |
 | jp_timing                        |   👍   |
 | ld_hl_sp_e_timing                |   👍   |
@@ -41,7 +41,7 @@ Tests status:
 | oam_dma_timing                   |   👍   |
 | pop_timing                       |   👍   |
 | push_timing                      |   👍   |
-| rapid_di_ei                      |   ❌   |
+| rapid_di_ei                      |   👍   |
 | ret_cc_timing                    |   👍   |
 | ret_timing                       |   👍   |
 | reti_intr_timing                 |   👍   |
@@ -51,16 +51,16 @@ Tests status:
 | bits/reg_f                       |   👍   |
 | bits/unused_hwio-GS              |   ❌   |
 | instr/daa                        |   👍   |
-| interrupts/ie_push               |   👍   |
+| interrupts/ie_push               |   ❌   |
 | oam_dma/basic                    |   👍   |
 | oam_dma/reg_read                 |   👍   |
 | oam_dma/sources-GS               |   ❌   |
 | ppu/hblank_ly_scx_timing-GS      |   ❌   |
 | ppu/intr_1_2_timing-GS           |   ❌   |
 | ppu/intr_2_0_timing              |   ❌   |
-| ppu/intr_2_mode0_timing          |   👍   |
+| ppu/intr_2_mode0_timing          |   ❌   |
 | ppu/intr_2_mode0_timing_sprites  |   ❌   |
-| ppu/intr_2_mode3_timing          |   👍   |
+| ppu/intr_2_mode3_timing          |   ❌   |
 | ppu/intr_2_oam_ok_timing         |   ❌   |
 | ppu/lcdon_timing-GS              |   ❌   |
 | ppu/lcdon_write_timing-GS        |   ❌   |
@@ -69,7 +69,7 @@ Tests status:
 | ppu/vblank_stat_intr-GS          |   ❌   |
 | serial/boot_sclk_align-dmgABCmgb |   ❌   |
 | timer/div_write                  |   👍   |
-| timer/rapid_toggle               |   👍   |
+| timer/rapid_toggle               |   ❌   |
 | timer/tim00                      |   👍   |
 | timer/tim00_div_trigger          |   👍   |
 | timer/tim01                      |   👍   |

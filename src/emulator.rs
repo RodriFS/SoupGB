@@ -1,7 +1,6 @@
 use super::constants::*;
 use super::dispatcher::Dispatcher;
 use super::gpu;
-use super::interrupts;
 use super::memory::Memory;
 use super::registers::Registers;
 use super::timers;
@@ -36,7 +35,6 @@ impl Emulator {
     Dispatcher::run(self);
     gpu::update(self, 4);
     timers::update(self, 4);
-    interrupts::update(self);
     self.memory.dma_copy_byte();
   }
 
@@ -104,14 +102,12 @@ impl Emulator {
     let bytes = data.to_be_bytes();
     self.memory.dec_sp(1);
     self.memory.write(self.memory.stack_pointer, bytes[0]);
-    self.take_cycle();
   }
 
   pub fn s_push_lo(&mut self, data: u16) {
     let bytes = data.to_be_bytes();
     self.memory.dec_sp(1);
     self.memory.write(self.memory.stack_pointer, bytes[1]);
-    self.take_cycle();
   }
 
   pub fn s_pop(&mut self) -> u16 {
