@@ -31,9 +31,9 @@ impl Timers {
     }
 }
 
-pub fn update_div_counter(ctx: &mut Emulator, cycles: u16) {
+pub fn update_div_counter(ctx: &mut Emulator) {
     let div_counter = ctx.memory.get_div_counter();
-    let result = div_counter.wrapping_add(cycles);
+    let result = div_counter.wrapping_add(4);
     ctx.memory.set_div_counter(result);
 }
 
@@ -59,11 +59,11 @@ pub fn update_tima(ctx: &mut Emulator) {
     ctx.memory.prev_bit = selected_bit;
 }
 
-pub fn update(ctx: &mut Emulator, opcode_cycles: u32) {
+pub fn update(ctx: &mut Emulator) {
     if ctx.timers.sched_ime {
         ctx.timers.ime = true;
         ctx.timers.sched_ime = false;
     }
-    update_div_counter(ctx, opcode_cycles as u16);
+    update_div_counter(ctx);
     update_tima(ctx);
 }

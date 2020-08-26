@@ -33,8 +33,8 @@ impl Emulator {
 
   pub fn take_cycle(&mut self) {
     Dispatcher::run(self);
-    gpu::update(self, 4);
-    timers::update(self, 4);
+    gpu::update(self);
+    timers::update(self);
     self.memory.dma_copy_byte();
   }
 

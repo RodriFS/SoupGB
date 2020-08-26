@@ -30,13 +30,13 @@ pub fn main() {
     let buf_len = SCREEN_WIDTH * SCREEN_HEIGHT;
     emulator.debug();
     while window.is_open() && !window.is_key_down(Key::Escape) {
+        interrupts::update(&mut emulator);
         print_debug(
             emulator.debug,
             &emulator.memory,
             &emulator.timers,
             &emulator.registers,
         );
-        interrupts::update(&mut emulator);
         cpu::update(&mut emulator);
         if emulator.frame_buffer.len() == buf_len {
             // if emulator.memory.get_ly() == 143 && emulator.memory.get_lcd_status() == LcdMode::HBlank {

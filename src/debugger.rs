@@ -342,6 +342,7 @@ pub fn print_debug(debug: bool, memory: &Memory, timers: &Timers, registers: &Re
             timers.scan_line_counter
         );
         print_instruction(opcode, memory);
+        println!("halted: {}", timers.is_halted);
         let pc = memory.get_pc();
         if pc == 0xffb8 {
             for word in 0x8000..0x9bff {

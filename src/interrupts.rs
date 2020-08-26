@@ -47,21 +47,6 @@ pub fn update(ctx: &mut Emulator) {
     }
 }
 
-pub fn stat_irq(ctx: &Emulator, bit: u8) -> StatCond {
-    let lcd_status = ctx.memory.read(0xff41);
-    if get_bit_at(lcd_status, bit) {
-        match bit {
-            3 => StatCond::HBLANK,
-            4 => StatCond::VBlank,
-            5 => StatCond::OAM,
-            6 => StatCond::LYC,
-            _ => StatCond::None,
-        }
-    } else {
-        StatCond::None
-    }
-}
-
 pub fn interrupt_execution(ctx: &mut Emulator, interrupt: u8) -> bool {
     let pc = ctx.memory.get_pc();
     ctx.s_push_hi(pc);
@@ -84,6 +69,21 @@ pub fn interrupt_execution(ctx: &mut Emulator, interrupt: u8) -> bool {
         };
         ctx.memory.set_pc(new_pc as u16);
         false
+    }
+}
+
+pub fn stat_irq(ctx: &Emulator, bit: u8) -> StatCond {
+    let lcd_status = ctx.memory.read(0xff41);
+    if get_bit_at(lcd_status, bit) {
+        match bit {
+            3 => StatCond::HBLANK,
+            4 => StatCond::VBlank,
+            5 => StatCond::OAM,
+            6 => StatCond::LYC,
+            _ => StatCond::None,
+        }
+    } else {
+        StatCond::None
     }
 }
 

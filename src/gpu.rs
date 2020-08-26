@@ -274,7 +274,7 @@ fn draw_scan_line(ctx: &mut Emulator) {
     ctx.frame_buffer.extend(colored_pixels);
 }
 
-pub fn update(ctx: &mut Emulator, frame_cycles: u32) {
+pub fn update(ctx: &mut Emulator) {
     if !ctx.memory.is_lcd_enabled() {
         ctx.timers.scan_line_counter = 0;
         ctx.memory.write_ly(0);
@@ -282,6 +282,6 @@ pub fn update(ctx: &mut Emulator, frame_cycles: u32) {
         ctx.frame_buffer.clear();
         return;
     }
-    ctx.timers.scan_line_counter += frame_cycles;
+    ctx.timers.scan_line_counter += 4;
     set_lcd_mode(ctx);
 }
