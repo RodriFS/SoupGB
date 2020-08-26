@@ -62,7 +62,6 @@ pub struct Memory {
     dma_cursor: u16,
     pub prev_bit: u16,
     pub sched_tima_reload: bool,
-    pub sched_lcd_mode: Option<LcdMode>,
     pub prev_stat_condition: PrevStatCond,
 }
 
@@ -119,7 +118,6 @@ impl Memory {
             dma_cursor: 0,
             prev_bit: 0,
             sched_tima_reload: false,
-            sched_lcd_mode: None,
             prev_stat_condition: PrevStatCond::OAM, // everything following oam recognized.
         }
     }

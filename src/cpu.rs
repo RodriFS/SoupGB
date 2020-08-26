@@ -1,4 +1,5 @@
 use super::alu::*;
+use super::dispatcher::Action;
 use super::emulator::Emulator;
 use super::registers::Flags;
 use super::utils::*;
@@ -1987,7 +1988,7 @@ fn execute_opcode(ctx: &mut Emulator, opcode: u8, is_callback: bool) {
             ctx.registers.set_a(data);
         }
         0xfb => {
-            ctx.timers.set_ime();
+            ctx.dispatcher.dispatch(Action::ime1);
         }
         0xfe => {
             let n = ctx.get_byte();

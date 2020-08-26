@@ -48,6 +48,8 @@ pub fn update(ctx: &mut Emulator) {
 }
 
 pub fn interrupt_execution(ctx: &mut Emulator, interrupt: u8) -> bool {
+    ctx.take_cycle();
+    ctx.take_cycle();
     let pc = ctx.memory.get_pc();
     ctx.s_push_hi(pc);
     let interrupt_enable = ctx.memory.read(0xffff);
@@ -68,6 +70,7 @@ pub fn interrupt_execution(ctx: &mut Emulator, interrupt: u8) -> bool {
             _ => return true,
         };
         ctx.memory.set_pc(new_pc as u16);
+        ctx.take_cycle();
         false
     }
 }

@@ -102,12 +102,14 @@ impl Emulator {
     let bytes = data.to_be_bytes();
     self.memory.dec_sp(1);
     self.memory.write(self.memory.stack_pointer, bytes[0]);
+    self.take_cycle();
   }
 
   pub fn s_push_lo(&mut self, data: u16) {
     let bytes = data.to_be_bytes();
     self.memory.dec_sp(1);
     self.memory.write(self.memory.stack_pointer, bytes[1]);
+    self.take_cycle();
   }
 
   pub fn s_pop(&mut self) -> u16 {

@@ -5,7 +5,6 @@ pub struct Timers {
     pub divider_frequency: u32,
     pub scan_line_counter: u32,
     pub ime: bool,
-    pub sched_ime: bool,
     pub is_halted: bool,
     pub halt_bug: bool,
 }
@@ -17,17 +16,12 @@ impl Timers {
             scan_line_counter: 0,
             divider_frequency,
             ime: false,
-            sched_ime: false,
             is_halted: false,
             halt_bug: false,
         }
     }
-    pub fn set_ime(&mut self) {
-        self.sched_ime = true;
-    }
     pub fn clear_ime(&mut self) {
         self.ime = false;
-        self.sched_ime = false;
     }
 }
 
@@ -60,10 +54,6 @@ pub fn update_tima(ctx: &mut Emulator) {
 }
 
 pub fn update(ctx: &mut Emulator) {
-    if ctx.timers.sched_ime {
-        ctx.timers.ime = true;
-        ctx.timers.sched_ime = false;
-    }
     update_div_counter(ctx);
     update_tima(ctx);
 }
