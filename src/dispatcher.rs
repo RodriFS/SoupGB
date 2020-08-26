@@ -7,6 +7,7 @@ use std::iter::FromIterator;
 pub enum Action {
   new_mode(LcdMode),
   interrupt_request(u8),
+  ime1,
 }
 
 #[derive(Default)]
@@ -21,6 +22,7 @@ impl Dispatcher {
       match action {
         Action::new_mode(mode) => ctx.memory.set_lcd_status(mode),
         Action::interrupt_request(bit) => request_interrupt(ctx, bit),
+        Action::ime1 => ctx.timers.ime = true,
       }
     }
   }

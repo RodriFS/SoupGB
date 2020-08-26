@@ -4,9 +4,9 @@ use super::interrupts::request_interrupt;
 pub struct Timers {
     pub divider_frequency: u32,
     pub scan_line_counter: u32,
-    pub master_enabled: bool,
-    pub sched_master_enabled: bool,
+    pub ime: bool,
     pub is_halted: bool,
+    pub halt_bug: bool,
 }
 
 impl Timers {
@@ -15,23 +15,19 @@ impl Timers {
         Self {
             scan_line_counter: 0,
             divider_frequency,
-            master_enabled: false,
-            sched_master_enabled: false,
+            ime: false,
             is_halted: false,
+            halt_bug: false,
         }
     }
-    pub fn set_master_enabled_on(&mut self) {
-        self.sched_master_enabled = true;
-    }
-    pub fn clear_master_enabled(&mut self) {
-        self.master_enabled = false;
-        self.sched_master_enabled = false;
+    pub fn clear_ime(&mut self) {
+        self.ime = false;
     }
 }
 
-pub fn update_div_counter(ctx: &mut Emulator, cycles: u16) {
+pub fn update_div_counter(ctx: &mut Emulator) {
     let div_counter = ctx.memory.get_div_counter();
-    let result = div_counter.wrapping_add(cycles);
+    let result = div_counter.wrapping_add(4);
     ctx.memory.set_div_counter(result);
 }
 
@@ -57,11 +53,7 @@ pub fn update_tima(ctx: &mut Emulator) {
     ctx.memory.prev_bit = selected_bit;
 }
 
-pub fn update(ctx: &mut Emulator, opcode_cycles: u32) {
-    if ctx.timers.sched_master_enabled {
-        ctx.timers.master_enabled = true;
-        ctx.timers.sched_master_enabled = false;
-    }
-    update_div_counter(ctx, opcode_cycles as u16);
+pub fn update(ctx: &mut Emulator) {
+    update_div_counter(ctx);
     update_tima(ctx);
 }

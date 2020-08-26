@@ -1,4 +1,5 @@
 use super::alu::*;
+use super::dispatcher::Action;
 use super::emulator::Emulator;
 use super::registers::Flags;
 use super::utils::*;
@@ -1113,7 +1114,7 @@ fn execute_opcode(ctx: &mut Emulator, opcode: u8, is_callback: bool) {
         }
         0x08 => {
             let address = ctx.get_word();
-            let stack_pointer = ctx.memory.get_stack_pointer();
+            let stack_pointer = ctx.memory.get_sp();
             ctx.write_word(address, stack_pointer);
         }
         0x09 => {
@@ -1286,7 +1287,7 @@ fn execute_opcode(ctx: &mut Emulator, opcode: u8, is_callback: bool) {
         }
         0x31 => {
             let data = ctx.get_word();
-            ctx.memory.set_stack_pointer(data);
+            ctx.memory.set_sp(data);
         }
         0x32 => {
             let address = ctx.registers.get_hl();
@@ -1295,7 +1296,7 @@ fn execute_opcode(ctx: &mut Emulator, opcode: u8, is_callback: bool) {
             ctx.registers.set_hl(address.wrapping_sub(1));
         }
         0x33 => {
-            ctx.memory.increment_stack_pointer(1);
+            ctx.memory.inc_sp(1);
             ctx.take_cycle();
         }
         0x34 => {
@@ -1333,7 +1334,7 @@ fn execute_opcode(ctx: &mut Emulator, opcode: u8, is_callback: bool) {
         0x39 => {
             let result = add_hl_n(
                 ctx.registers.get_hl(),
-                ctx.memory.get_stack_pointer(),
+                ctx.memory.get_sp(),
                 &mut ctx.registers,
             );
             ctx.take_cycle();
@@ -1346,7 +1347,7 @@ fn execute_opcode(ctx: &mut Emulator, opcode: u8, is_callback: bool) {
             ctx.registers.set_hl(address.wrapping_sub(1));
         }
         0x3b => {
-            ctx.memory.decrement_stack_pointer(1);
+            ctx.memory.dec_sp(1);
             ctx.take_cycle()
         }
         0x3c => {
@@ -1775,7 +1776,7 @@ fn execute_opcode(ctx: &mut Emulator, opcode: u8, is_callback: bool) {
             ret_cc(z == 0, ctx);
         }
         0xc1 => {
-            let data = ctx.pop_from_stack();
+            let data = ctx.s_pop();
             ctx.registers.set_bc(data);
         }
         0xc2 => {
@@ -1792,7 +1793,7 @@ fn execute_opcode(ctx: &mut Emulator, opcode: u8, is_callback: bool) {
         0xc5 => {
             let address = ctx.registers.get_bc();
             ctx.take_cycle();
-            ctx.push_to_stack(address);
+            ctx.s_push(address);
         }
         0xc6 => {
             let n = ctx.get_byte();
@@ -1835,7 +1836,7 @@ fn execute_opcode(ctx: &mut Emulator, opcode: u8, is_callback: bool) {
             ret_cc(c == 0, ctx);
         }
         0xd1 => {
-            let data = ctx.pop_from_stack();
+            let data = ctx.s_pop();
             ctx.registers.set_de(data);
         }
         0xd2 => {
@@ -1849,7 +1850,7 @@ fn execute_opcode(ctx: &mut Emulator, opcode: u8, is_callback: bool) {
         0xd5 => {
             let address = ctx.registers.get_de();
             ctx.take_cycle();
-            ctx.push_to_stack(address);
+            ctx.s_push(address);
         }
         0xd6 => {
             let n = ctx.get_byte();
@@ -1886,7 +1887,7 @@ fn execute_opcode(ctx: &mut Emulator, opcode: u8, is_callback: bool) {
             ctx.mem_write(address, a);
         }
         0xe1 => {
-            let data = ctx.pop_from_stack();
+            let data = ctx.s_pop();
             ctx.registers.set_hl(data);
         }
         0xe2 => {
@@ -1897,7 +1898,7 @@ fn execute_opcode(ctx: &mut Emulator, opcode: u8, is_callback: bool) {
         0xe5 => {
             let address = ctx.registers.get_hl();
             ctx.take_cycle();
-            ctx.push_to_stack(address);
+            ctx.s_push(address);
         }
         0xe6 => {
             let n = ctx.get_byte();
@@ -1908,7 +1909,7 @@ fn execute_opcode(ctx: &mut Emulator, opcode: u8, is_callback: bool) {
         }
         0xe8 => {
             let data = ctx.get_byte() as i8 as u16;
-            let address = ctx.memory.get_stack_pointer();
+            let address = ctx.memory.get_sp();
             ctx.registers.set_flag(Flags::Z, false);
             ctx.registers.set_flag(Flags::N, false);
             ctx.registers
@@ -1917,12 +1918,12 @@ fn execute_opcode(ctx: &mut Emulator, opcode: u8, is_callback: bool) {
                 .set_flag(Flags::C, (address & 0xff) + (data & 0xff) > 0xff);
             let result = address.wrapping_add(data as u16);
             ctx.take_cycle();
-            ctx.memory.set_stack_pointer(result);
+            ctx.memory.set_sp(result);
             ctx.take_cycle();
         }
         0xe9 => {
             let address = ctx.registers.get_hl();
-            ctx.memory.set_program_counter(address);
+            ctx.memory.set_pc(address);
         }
         0xea => {
             let word = ctx.get_word();
@@ -1940,7 +1941,7 @@ fn execute_opcode(ctx: &mut Emulator, opcode: u8, is_callback: bool) {
             ctx.registers.a = ctx.mem_read(address);
         }
         0xf1 => {
-            let data = ctx.pop_from_stack();
+            let data = ctx.s_pop();
             ctx.registers.set_af(data);
         }
         0xf2 => {
@@ -1949,12 +1950,12 @@ fn execute_opcode(ctx: &mut Emulator, opcode: u8, is_callback: bool) {
             ctx.registers.set_a(data);
         }
         0xf3 => {
-            ctx.timers.clear_master_enabled();
+            ctx.timers.clear_ime();
         }
         0xf5 => {
             let address = ctx.registers.get_af();
             ctx.take_cycle();
-            ctx.push_to_stack(address);
+            ctx.s_push(address);
         }
         0xf6 => {
             let n = ctx.get_byte();
@@ -1965,7 +1966,7 @@ fn execute_opcode(ctx: &mut Emulator, opcode: u8, is_callback: bool) {
         }
         0xf8 => {
             let data = ctx.get_byte() as i8 as u16;
-            let address = ctx.memory.get_stack_pointer();
+            let address = ctx.memory.get_sp();
             ctx.registers
                 .set_flag(Flags::H, (address & 0x0f) + (data & 0x0f) > 0x0f);
             ctx.registers
@@ -1979,7 +1980,7 @@ fn execute_opcode(ctx: &mut Emulator, opcode: u8, is_callback: bool) {
         0xf9 => {
             let address = ctx.registers.get_hl();
             ctx.take_cycle(); // check if before or after SP
-            ctx.memory.set_stack_pointer(address);
+            ctx.memory.set_sp(address);
         }
         0xfa => {
             let word = ctx.get_word();
@@ -1987,7 +1988,7 @@ fn execute_opcode(ctx: &mut Emulator, opcode: u8, is_callback: bool) {
             ctx.registers.set_a(data);
         }
         0xfb => {
-            ctx.timers.set_master_enabled_on();
+            ctx.dispatcher.dispatch(Action::ime1);
         }
         0xfe => {
             let n = ctx.get_byte();
@@ -1997,7 +1998,7 @@ fn execute_opcode(ctx: &mut Emulator, opcode: u8, is_callback: bool) {
             rst_n(0x0038, ctx);
         }
         0xd3 | 0xdb | 0xdd | 0xe3 | 0xe4 | 0xeb | 0xec | 0xed | 0xf4 | 0xfc | 0xfd => {
-            panic!("Unexisting code {:X}", opcode)
+            unreachable!("Unexisting code {:X}", opcode)
         }
     };
 }

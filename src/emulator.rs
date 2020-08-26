@@ -1,7 +1,6 @@
 use super::constants::*;
 use super::dispatcher::Dispatcher;
 use super::gpu;
-use super::interrupts;
 use super::memory::Memory;
 use super::registers::Registers;
 use super::timers;
@@ -34,9 +33,8 @@ impl Emulator {
 
   pub fn take_cycle(&mut self) {
     Dispatcher::run(self);
-    gpu::update(self, 4);
-    timers::update(self, 4);
-    interrupts::update(self);
+    gpu::update(self);
+    timers::update(self);
     self.memory.dma_copy_byte();
   }
 
@@ -64,58 +62,62 @@ impl Emulator {
   }
 
   pub fn get_word(&mut self) -> u16 {
-    let lo = self.memory.read(self.memory.get_program_counter()) as u16;
+    let lo = self.memory.read(self.memory.get_pc()) as u16;
     self.take_cycle();
-    self.memory.increment_program_counter(1);
-    let hi = self.memory.read(self.memory.get_program_counter()) as u16;
+    self.memory.inc_pc(1);
+    let hi = self.memory.read(self.memory.get_pc()) as u16;
     self.take_cycle();
-    self.memory.increment_program_counter(1);
+    self.memory.inc_pc(1);
     (hi << 8) | lo
   }
 
   pub fn get_byte(&mut self) -> u8 {
-    let byte = self.memory.read(self.memory.get_program_counter());
+    let byte = self.memory.read(self.memory.get_pc());
     self.take_cycle();
-    self.memory.increment_program_counter(1);
+    self.memory.inc_pc(1);
     byte
   }
 
   pub fn fetch_opcode(&mut self) -> u8 {
-    let byte = self.memory.read(self.memory.get_program_counter());
-    self.memory.increment_program_counter(1);
+    let byte = self.memory.read(self.memory.get_pc());
+    if self.timers.halt_bug {
+      self.timers.halt_bug = false
+    } else {
+      self.memory.inc_pc(1);
+    }
     byte
   }
 
-  pub fn push_to_stack(&mut self, data: u16) {
+  pub fn s_push(&mut self, data: u16) {
     let bytes = data.to_be_bytes();
-    self.memory.decrement_stack_pointer(1);
+    self.memory.dec_sp(1);
     self.memory.write(self.memory.stack_pointer, bytes[0]);
     self.take_cycle();
-    self.memory.decrement_stack_pointer(1);
+    self.memory.dec_sp(1);
     self.memory.write(self.memory.stack_pointer, bytes[1]);
     self.take_cycle();
   }
 
-  pub fn push_to_stack_hi(&mut self, data: u16) {
+  pub fn s_push_hi(&mut self, data: u16) {
     let bytes = data.to_be_bytes();
-    self.memory.decrement_stack_pointer(1);
+    self.memory.dec_sp(1);
     self.memory.write(self.memory.stack_pointer, bytes[0]);
     self.take_cycle();
   }
 
-  pub fn push_to_stack_lo(&mut self, data: u16) {
+  pub fn s_push_lo(&mut self, data: u16) {
     let bytes = data.to_be_bytes();
-    self.memory.decrement_stack_pointer(1);
+    self.memory.dec_sp(1);
     self.memory.write(self.memory.stack_pointer, bytes[1]);
     self.take_cycle();
   }
 
-  pub fn pop_from_stack(&mut self) -> u16 {
+  pub fn s_pop(&mut self) -> u16 {
     let byte1 = self.memory.read(self.memory.stack_pointer);
-    self.memory.increment_stack_pointer(1);
+    self.memory.inc_sp(1);
     self.take_cycle(); // check if before or after increment
     let byte2 = self.memory.read(self.memory.stack_pointer);
-    self.memory.increment_stack_pointer(1);
+    self.memory.inc_sp(1);
     self.take_cycle(); // check if before or after increment
     (byte2 as u16) << 8 | byte1 as u16
   }

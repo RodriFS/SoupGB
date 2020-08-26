@@ -1,75 +1,125 @@
 use super::constants::*;
 use super::dispatcher::Action;
 use super::emulator::Emulator;
-use super::interrupts::{is_interrupt_requested, request_interrupt};
-use super::memory::{LcdMode, Point2D};
+use super::interrupts::{stat_irq, StatCond};
+use super::memory::{LcdMode, Point2D, PrevStatCond};
 use super::utils::get_bit_at;
 
 fn set_lcd_mode(ctx: &mut Emulator) {
     let current_line = ctx.memory.get_ly();
     let current_mode = ctx.memory.get_lcd_status();
-    let mut req_int = false;
-    let mut req_mode = None;
+    let mut stat_int_requested = stat_irq(ctx, 6);
     match current_mode {
+        // mode 2
         LcdMode::ReadOAM => {
-            // mode 2
             if ctx.timers.scan_line_counter >= 80 {
+                // go to mode 3
                 ctx.timers.scan_line_counter = 0;
                 ctx.dispatcher.dispatch(Action::new_mode(LcdMode::ReadVRAM));
-                req_int = is_interrupt_requested(ctx, 5);
-                req_mode = Some(LcdMode::ReadVRAM);
             }
         }
+        // mode 3
         LcdMode::ReadVRAM => {
-            // mode 3
             if ctx.timers.scan_line_counter >= 172 {
+                // go to mode 0
                 ctx.timers.scan_line_counter = 0;
                 ctx.dispatcher.dispatch(Action::new_mode(LcdMode::HBlank));
-                req_mode = Some(LcdMode::HBlank);
+                stat_int_requested = stat_irq(ctx, 3);
                 draw_scan_line(ctx);
             }
         }
+        // mode 0
         LcdMode::HBlank => {
-            // mode 0
             if ctx.timers.scan_line_counter >= 204 {
                 ctx.timers.scan_line_counter = 0;
-                ctx.memory.increment_scanline();
-
-                if ctx.memory.get_ly() > 143 {
+                ctx.memory.increment_ly();
+                if ctx.memory.get_ly() > 0x8F {
+                    // go to mode 1
                     ctx.dispatcher.dispatch(Action::new_mode(LcdMode::VBlank));
                     ctx.dispatcher.dispatch(Action::interrupt_request(0));
-                    req_mode = Some(LcdMode::VBlank);
+                    stat_int_requested = StatCond::or(stat_irq(ctx, 4), stat_irq(ctx, 5));
                 } else {
+                    // go to mode 2
                     ctx.dispatcher.dispatch(Action::new_mode(LcdMode::ReadOAM));
-                    req_mode = Some(LcdMode::ReadOAM);
+                    stat_int_requested = stat_irq(ctx, 5);
                 };
-                req_int = is_interrupt_requested(ctx, 3);
             }
         }
+        // mode 1
         LcdMode::VBlank => {
-            // mode 1
-            if ctx.timers.scan_line_counter >= 456 {
-                ctx.timers.scan_line_counter = 0;
-                ctx.memory.increment_scanline();
-                if ctx.memory.get_ly() > 153 {
-                    ctx.dispatcher.dispatch(Action::new_mode(LcdMode::ReadOAM));
-                    ctx.memory.write_scanline(0);
-                    req_int = is_interrupt_requested(ctx, 4);
-                    req_mode = Some(LcdMode::ReadOAM);
+            match current_line {
+                0x90..=0x98 if ctx.timers.scan_line_counter >= 456 => {
+                    ctx.timers.scan_line_counter = 0;
+                    ctx.memory.increment_ly();
                 }
+                0x99 if ctx.timers.scan_line_counter >= 56 => {
+                    ctx.timers.scan_line_counter = 0;
+                    ctx.memory.write_ly(0);
+                }
+                0x00 if ctx.timers.scan_line_counter >= 856 => {
+                    // go to mode 2
+                    ctx.timers.scan_line_counter = 0;
+                    ctx.dispatcher.dispatch(Action::new_mode(LcdMode::ReadOAM));
+                    stat_int_requested = stat_irq(ctx, 5);
+                }
+                _ => {}
             }
         }
     };
-    if req_int && req_mode.is_some() {
-        ctx.dispatcher.dispatch(Action::interrupt_request(1))
+
+    if stat_int_requested.is_stat() && check_stat_conditions(ctx, &stat_int_requested) {
+        ctx.dispatcher.dispatch(Action::interrupt_request(1));
+        update_prev_stat_condition(ctx, stat_int_requested, current_line);
     }
-    if current_line == ctx.memory.get_lyc() {
-        ctx.memory.set_coincidence_flag();
-        if is_interrupt_requested(ctx, 6) {
-            request_interrupt(ctx, 1);
+}
+
+fn check_stat_conditions(ctx: &mut Emulator, stat_request: &StatCond) -> bool {
+    if ctx.memory.prev_stat_condition == PrevStatCond::OAM {
+        return true;
+    }
+    let lyc = ctx.memory.get_lyc();
+    let ly = ctx.memory.get_ly();
+    //   Some STAT-conditions cause the following STAT-condition to be ignored:
+    match ctx.memory.prev_stat_condition {
+        //   Past  VBLANK           following  LYC=91..99,00        is ignored
+        PrevStatCond::VBlank if stat_request == &StatCond::LYC => match lyc {
+            0x00 => false,
+            0x91..=0x99 => false,
+            _ => true,
+        },
+        //   Past  VBLANK           following  OAM         (at 00)  is ignored
+        PrevStatCond::VBlank if stat_request == &StatCond::OAM && ly == 0 => false,
+        //   Past  LYC=00 at 99.2   following  OAMs (at 00 and 01) are ignored
+        PrevStatCond::LYC(0x00) if stat_request == &StatCond::OAM && (lyc == 0 || lyc == 1) => {
+            false
         }
-    } else {
-        ctx.memory.clear_coincidence_flag();
+        //   Past  LYC=01..8F       following  OAM     (at 02..90)  is ignored
+        PrevStatCond::LYC(0x01..=0x8f) if stat_request == &StatCond::OAM => match ly {
+            0x02..=0x90 => false,
+            _ => true,
+        },
+        //   Past  LYC=00..8F       following  HBLANK  (at 00..8F)  is ignored
+        PrevStatCond::LYC(0x00..=0x8F) if stat_request == &StatCond::HBLANK => match ly {
+            0x00..=0x8F => false,
+            _ => true,
+        },
+        //   Past  LYC=8F           following  VBLANK               is ignored
+        PrevStatCond::LYC(0x8F) if stat_request == &StatCond::VBlank => false,
+        //   Past  HBLANK           following  OAM                  is ignored
+        PrevStatCond::HBLANK(..) if stat_request == &StatCond::OAM => false,
+        //   Past  HBLANK at 8F     following  VBLANK               is ignored
+        PrevStatCond::HBLANK(0x8F) if stat_request == &StatCond::VBlank => false,
+        _ => true,
+    }
+}
+
+fn update_prev_stat_condition(ctx: &mut Emulator, stat_int_requested: StatCond, current_line: u8) {
+    ctx.memory.prev_stat_condition = match stat_int_requested {
+        StatCond::HBLANK => PrevStatCond::HBLANK(current_line),
+        StatCond::VBlank => PrevStatCond::VBlank,
+        StatCond::OAM => PrevStatCond::OAM,
+        StatCond::LYC => PrevStatCond::LYC(current_line),
+        _ => unreachable!(),
     }
 }
 
@@ -79,14 +129,14 @@ fn get_color(pixel: u8, palette: u8) -> u32 {
         0x01 => (palette & 0b0000_1100) >> 2,
         0x02 => (palette & 0b0011_0000) >> 4,
         0x03 => (palette & 0b1100_0000) >> 6,
-        _ => panic!("Unreachable"),
+        _ => unreachable!(),
     };
     match color {
         0x00 => 0xff_ff_ff,
         0x01 => 0xea_ec_ee,
         0x02 => 0x56_65_73,
         0x03 => 0x00_00_00,
-        _ => panic!("Unreachable"),
+        _ => unreachable!(),
     }
 }
 
@@ -102,7 +152,7 @@ fn get_tile_ids(ctx: &mut Emulator, bg_mem: u16) -> (u16, u16) {
     let tile_id = match tiledata_region {
         0x8000 => data as u16 * 16,
         0x8800 => ((data as i8) as u16).wrapping_add(128) * 16,
-        _ => panic!("Unreachable"),
+        _ => unreachable!(),
     };
     (tiledata_region + tile_id, tiledata_region + tile_id + 1)
 }
@@ -224,14 +274,14 @@ fn draw_scan_line(ctx: &mut Emulator) {
     ctx.frame_buffer.extend(colored_pixels);
 }
 
-pub fn update(ctx: &mut Emulator, frame_cycles: u32) {
+pub fn update(ctx: &mut Emulator) {
     if !ctx.memory.is_lcd_enabled() {
         ctx.timers.scan_line_counter = 0;
-        ctx.memory.write_scanline(0);
-        ctx.memory.set_lcd_status(LcdMode::HBlank); // Check
+        ctx.memory.write_ly(0);
+        ctx.memory.set_lcd_status(LcdMode::VBlank); // Check
         ctx.frame_buffer.clear();
         return;
     }
-    ctx.timers.scan_line_counter += frame_cycles;
+    ctx.timers.scan_line_counter += 4;
     set_lcd_mode(ctx);
 }
