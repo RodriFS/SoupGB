@@ -61,7 +61,7 @@ Tests status:
 | ppu/intr_2_mode0_timing          |   👍   |
 | ppu/intr_2_mode0_timing_sprites  |   ❌   |
 | ppu/intr_2_mode3_timing          |   👍   |
-| ppu/intr_2_oam_ok_timing         |   ❌   |
+| ppu/intr_2_oam_ok_timing         |   👍   |
 | ppu/lcdon_timing-GS              |   ❌   |
 | ppu/lcdon_write_timing-GS        |   ❌   |
 | ppu/stat_irq_blocking            |   ❌   |

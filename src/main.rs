@@ -1,11 +1,12 @@
-use gba::constants::*;
-use gba::cpu;
-use gba::debugger::print_debug;
-use gba::emulator::Emulator;
-use gba::interrupts;
 use minifb::{Key, Scale, Window, WindowOptions};
+use soup_gb::constants::*;
+use soup_gb::cpu;
+use soup_gb::debugger::print_debug;
+use soup_gb::emulator::Emulator;
+use soup_gb::interrupts;
 use std::fs::File;
 use std::io::Read;
+use std::time::Instant;
 
 pub fn main() {
     let mut emulator = Emulator::default();
@@ -29,6 +30,8 @@ pub fn main() {
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
     let buf_len = SCREEN_WIDTH * SCREEN_HEIGHT;
     emulator.debug();
+    let mut frame_time = Instant::now();
+    let mut frame_counter = 0;
     while window.is_open() && !window.is_key_down(Key::Escape) {
         interrupts::update(&mut emulator);
         print_debug(
@@ -39,7 +42,7 @@ pub fn main() {
         );
         cpu::update(&mut emulator);
         if emulator.frame_buffer.len() == buf_len {
-            // if emulator.memory.get_ly() == 143 && emulator.memory.get_lcd_status() == LcdMode::HBlank {
+            // if emulator.memory.get_ly() == 143 && emulator.memory.lcd_mode() == LcdMode::HBlank {
             match window.update_with_buffer(&emulator.frame_buffer, SCREEN_WIDTH, SCREEN_HEIGHT) {
                 Ok(_) => {}
                 Err(e) => {
@@ -48,6 +51,12 @@ pub fn main() {
                 }
             }
             emulator.frame_buffer.clear();
+            if frame_time.elapsed().as_millis() >= 1000 {
+                window.set_title(&format!("FPS: {}", frame_counter));
+                frame_time = Instant::now();
+                frame_counter = 0;
+            }
+            frame_counter += 1
         }
     }
 }

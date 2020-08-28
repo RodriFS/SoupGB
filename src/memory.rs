@@ -92,7 +92,6 @@ impl Memory {
         io_ports[0x47] = 0xFC;
         io_ports[0x48] = 0xFF;
         io_ports[0x49] = 0xFF;
-        // io_ports[0x41] = 0x85;
 
         Self {
             wram: [0; 0x2000],
@@ -351,7 +350,7 @@ impl Memory {
         self.read(0xff49)
     }
 
-    pub fn get_lcd_status(&self) -> LcdMode {
+    pub fn lcd_mode(&self) -> LcdMode {
         let lcd_status = self.read(0xff41);
         match lcd_status & 0x3 {
             0x0 => LcdMode::HBlank,
@@ -627,9 +626,12 @@ impl Memory {
     pub fn read(&self, address: u16) -> u8 {
         match address {
             0x8000..=0x9fff if self.dma_copy_in_progress => 0xff,
+            0x8000..=0x9fff if self.lcd_mode() == LcdMode::ReadVRAM => 0xff,
             0xfe00..=0xfe9f if self.dma_copy_in_progress => 0xff,
             0xa000..=0xbfff if !self.is_ram_enabled => 0xff,
             0xfe00..=0xfe9f if self.dma_copy_in_progress => 0xff,
+            0xfe00..=0xfe9f if self.lcd_mode() == LcdMode::ReadOAM => 0xff,
+            0xfe00..=0xfe9f if self.lcd_mode() == LcdMode::ReadVRAM => 0xff,
             _ => self.read_unchecked(address),
         }
     }
@@ -655,7 +657,13 @@ impl Memory {
             0xff00..=0xff0e => self.read_io_ports(address),
             0xff0f => self.read_io_ports(address) | 0b1110_0000,
             0xff10..=0xff40 => self.read_io_ports(address),
-            0xff41 => self.read_io_ports(address) | 0b1000_0000,
+            0xff41 => {
+                let stat = self.read_io_ports(address) | 0b1000_0000;
+                if !self.is_lcd_enabled() {
+                    return stat & 0b1111_1000; // Bits 0-2 return '0' when the LCD is off.
+                }
+                stat
+            }
             0xff42..=0xff7f => self.read_io_ports(address),
             0xff80..=0xfffe => self.read_hram(address),
             0xffff => self.ie_register,
@@ -665,9 +673,12 @@ impl Memory {
     pub fn write(&mut self, address: u16, data: u8) {
         match address {
             0x8000..=0x9fff if self.dma_copy_in_progress => {}
+            0x8000..=0x9fff if self.lcd_mode() == LcdMode::ReadVRAM => {}
             0xfe00..=0xfe9f if self.dma_copy_in_progress => {}
             0xa000..=0xbfff if !self.is_ram_enabled => {}
             0xfe00..=0xfe9f if self.dma_copy_in_progress => {}
+            0xfe00..=0xfe9f if self.lcd_mode() == LcdMode::ReadOAM => {}
+            0xfe00..=0xfe9f if self.lcd_mode() == LcdMode::ReadVRAM => {}
             0xff04 => {
                 self.write_io_ports(0xff03, 0);
                 self.write_io_ports(0xff04, 0);

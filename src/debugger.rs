@@ -338,7 +338,7 @@ pub fn print_debug(debug: bool, memory: &Memory, timers: &Timers, registers: &Re
         );
         println!(
             "period: {:?} : {}",
-            memory.get_lcd_status(),
+            memory.lcd_mode(),
             timers.scan_line_counter
         );
         print_instruction(opcode, memory);

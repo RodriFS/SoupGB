@@ -1,14 +1,14 @@
 use super::constants::*;
 use super::dispatcher::Action;
 use super::emulator::Emulator;
-use super::interrupts::{stat_irq, StatCond};
+use super::interrupts::{stat_irq, Interrupts, StatCond};
 use super::memory::{LcdMode, Point2D, PrevStatCond};
 use super::utils::get_bit_at;
 
 fn set_lcd_mode(ctx: &mut Emulator) {
     let current_line = ctx.memory.get_ly();
-    let current_mode = ctx.memory.get_lcd_status();
-    let mut stat_int_requested = stat_irq(ctx, 6);
+    let current_mode = ctx.memory.lcd_mode();
+    let mut stat_int_requested = stat_irq(ctx, StatCond::LYC);
     match current_mode {
         // mode 2
         LcdMode::ReadOAM => {
@@ -24,7 +24,7 @@ fn set_lcd_mode(ctx: &mut Emulator) {
                 // go to mode 0
                 ctx.timers.scan_line_counter = 0;
                 ctx.dispatcher.dispatch(Action::new_mode(LcdMode::HBlank));
-                stat_int_requested = stat_irq(ctx, 3);
+                stat_int_requested = stat_irq(ctx, StatCond::HBLANK);
                 draw_scan_line(ctx);
             }
         }
@@ -36,12 +36,16 @@ fn set_lcd_mode(ctx: &mut Emulator) {
                 if ctx.memory.get_ly() > 0x8F {
                     // go to mode 1
                     ctx.dispatcher.dispatch(Action::new_mode(LcdMode::VBlank));
-                    ctx.dispatcher.dispatch(Action::interrupt_request(0));
-                    stat_int_requested = StatCond::or(stat_irq(ctx, 4), stat_irq(ctx, 5));
+                    ctx.dispatcher
+                        .dispatch(Action::interrupt_request(Interrupts::VBlank as u8));
+                    stat_int_requested = StatCond::or(
+                        stat_irq(ctx, StatCond::VBlank),
+                        stat_irq(ctx, StatCond::OAM),
+                    );
                 } else {
                     // go to mode 2
                     ctx.dispatcher.dispatch(Action::new_mode(LcdMode::ReadOAM));
-                    stat_int_requested = stat_irq(ctx, 5);
+                    stat_int_requested = stat_irq(ctx, StatCond::OAM);
                 };
             }
         }
@@ -60,7 +64,7 @@ fn set_lcd_mode(ctx: &mut Emulator) {
                     // go to mode 2
                     ctx.timers.scan_line_counter = 0;
                     ctx.dispatcher.dispatch(Action::new_mode(LcdMode::ReadOAM));
-                    stat_int_requested = stat_irq(ctx, 5);
+                    stat_int_requested = stat_irq(ctx, StatCond::OAM);
                 }
                 _ => {}
             }
@@ -68,7 +72,8 @@ fn set_lcd_mode(ctx: &mut Emulator) {
     };
 
     if stat_int_requested.is_stat() && check_stat_conditions(ctx, &stat_int_requested) {
-        ctx.dispatcher.dispatch(Action::interrupt_request(1));
+        ctx.dispatcher
+            .dispatch(Action::interrupt_request(Interrupts::LCDStat as u8));
         update_prev_stat_condition(ctx, stat_int_requested, current_line);
     }
 }
@@ -196,6 +201,30 @@ fn render_background(ctx: &mut Emulator, buffer: &mut Vec<(u8, u8)>) {
     let palette = ctx.memory.background_palette();
     let bg_map = ctx.memory.map_select();
     let Point2D { x: sx, y: sy } = ctx.memory.background_position();
+    let current_line = ctx.memory.get_ly();
+    let y_pos = get_y_pos(false, sy, 0, current_line);
+    let visible_tiles = 256 as u16 / 8;
+    let from = bg_map + (y_pos as u16 / 8) * 32;
+    let pixel_row = (y_pos % 8) * 2;
+    for (tile_pos, bg_mem) in (from..(from + visible_tiles)).enumerate() {
+        let (tile1, tile2) = get_tile_ids(ctx, bg_mem);
+        let data1 = ctx.memory.read_unchecked(pixel_row as u16 + tile1);
+        let data2 = ctx.memory.read_unchecked(pixel_row as u16 + tile2);
+        let pixels = make_pixels(data1, data2);
+        pixels.iter().enumerate().for_each(|(i, pixel)| {
+            let pixel_pos = (tile_pos * 8) + i;
+            let x_pos = get_x_pos(false, sx, 0, pixel_pos as u8) as usize;
+            if x_pos < SCREEN_WIDTH {
+                buffer[x_pos] = (*pixel, palette)
+            }
+        });
+    }
+}
+
+fn render_window(ctx: &mut Emulator, buffer: &mut Vec<(u8, u8)>) {
+    let palette = ctx.memory.background_palette();
+    let bg_map = ctx.memory.map_select();
+    let Point2D { x: sx, y: sy } = ctx.memory.background_position();
     let Point2D { x: wx, y: wy } = ctx.memory.window_position();
     let current_line = ctx.memory.get_ly();
     let window_enabled = ctx.memory.window_enabled() && wy <= current_line;
@@ -264,6 +293,9 @@ fn draw_scan_line(ctx: &mut Emulator) {
     if ctx.memory.background_enabled() {
         render_background(ctx, &mut buffer);
     }
+    if ctx.memory.window_enabled() {
+        render_window(ctx, &mut buffer);
+    }
     if ctx.memory.sprite_enabled() {
         render_sprites(ctx, &mut buffer);
     }
@@ -277,7 +309,7 @@ fn draw_scan_line(ctx: &mut Emulator) {
 pub fn update(ctx: &mut Emulator) {
     if !ctx.memory.is_lcd_enabled() {
         ctx.timers.scan_line_counter = 0;
-        ctx.memory.write_ly(0);
+        ctx.memory.write_ly(0x00);
         ctx.memory.set_lcd_status(LcdMode::VBlank); // Check
         ctx.frame_buffer.clear();
         return;
