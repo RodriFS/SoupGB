@@ -79,8 +79,8 @@ Tests status:
 | timer/tim11                      |   👍   |
 | timer/tim11_div_trigger          |   👍   |
 | timer/tima_reload                |   👍   |
-| timer/tima_write_reloading       |   ❌   |
-| timer/tma_write_reloading        |   ❌   |
+| timer/tima_write_reloading       |   👍   |
+| timer/tma_write_reloading        |   👍   |
 
 ## Mooneye Emulator Only tests
 

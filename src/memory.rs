@@ -61,7 +61,7 @@ pub struct Memory {
     dma_copy_in_progress: bool,
     dma_cursor: u16,
     pub prev_bit: u16,
-    pub sched_tima_reload: bool,
+    pub tima_reloading: bool,
     pub prev_stat_condition: PrevStatCond,
 }
 
@@ -116,7 +116,7 @@ impl Memory {
             dma_copy_in_progress: false,
             dma_cursor: 0,
             prev_bit: 0,
-            sched_tima_reload: false,
+            tima_reloading: false,
             prev_stat_condition: PrevStatCond::OAM, // everything following oam recognized.
         }
     }
@@ -252,8 +252,7 @@ impl Memory {
         self.read_unchecked(TIMER_CONTROL_ADDRESS)
     }
     pub fn tac_enabled(&self) -> u16 {
-        let timers = self.get_tac() & 0b0000_0111;
-        (timers >> 2) as u16
+        (self.get_tac() >> 2 & 0b1) as u16
     }
     pub fn tac_freq(&self) -> u8 {
         let bits = self.get_tac() & 0b11;
@@ -679,11 +678,18 @@ impl Memory {
             0xfe00..=0xfe9f if self.dma_copy_in_progress => {}
             0xfe00..=0xfe9f if self.lcd_mode() == LcdMode::ReadOAM => {}
             0xfe00..=0xfe9f if self.lcd_mode() == LcdMode::ReadVRAM => {}
+            // Writes to DIV resets DIV and counter
             0xff04 => {
                 self.write_io_ports(0xff03, 0);
                 self.write_io_ports(0xff04, 0);
             }
-            0xff05 if self.sched_tima_reload => {}
+            // Write to TIMA ignored
+            0xff05 if self.tima_reloading => {}
+            // Write to TMA also loads TIMA
+            0xff06 if self.tima_reloading => {
+                self.write_unchecked(0xff05, data);
+                self.write_unchecked(0xff06, data);
+            }
             0xff41 => {
                 let stat_register = self.read_unchecked(address) & 0b1000_0111;
                 let new_stat_register = data & 0b0111_1000;
