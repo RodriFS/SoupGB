@@ -1,6 +1,5 @@
 use super::dispatcher::Action;
 use super::emulator::Emulator;
-use super::interrupts::Interrupts;
 
 pub struct Timers {
     pub divider_frequency: u32,
@@ -33,17 +32,14 @@ pub fn update_div_counter(ctx: &mut Emulator) {
 }
 
 pub fn update_tima(ctx: &mut Emulator) {
-    let selected_bit =
-        (ctx.memory.get_div_counter() >> ctx.memory.tac_freq() & 0b1) & ctx.memory.tac_enabled();
-    let not_bit = selected_bit ^ 0b1;
-    if (not_bit & ctx.memory.prev_bit) == 1 {
+    let selected_bit = ctx.memory.get_div_counter() >> ctx.memory.tac_freq() & 0b1;
+    let bit_enabled = selected_bit & ctx.memory.tac_enabled();
+    if ((bit_enabled ^ 0b1) & ctx.memory.prev_bit) == 1 {
         let new_tima = ctx.memory.get_tima().wrapping_add(1);
-        ctx.memory.set_tima(new_tima);
         if new_tima == 0 {
-            ctx.dispatcher
-                .dispatch(Action::interrupt_request(Interrupts::Timer as u8));
             ctx.dispatcher.dispatch(Action::reload_tima(true));
         }
+        ctx.memory.set_tima(new_tima);
     }
     ctx.memory.prev_bit = selected_bit;
 }

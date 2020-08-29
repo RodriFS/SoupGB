@@ -37,7 +37,7 @@ fn set_lcd_mode(ctx: &mut Emulator) {
                     // go to mode 1
                     ctx.dispatcher.dispatch(Action::new_mode(LcdMode::VBlank));
                     ctx.dispatcher
-                        .dispatch(Action::interrupt_request(Interrupts::VBlank as u8));
+                        .dispatch(Action::request_interrupt(Interrupts::VBlank as u8));
                     stat_int_requested = StatCond::or(
                         stat_irq(ctx, StatCond::VBlank),
                         stat_irq(ctx, StatCond::OAM),
@@ -73,7 +73,7 @@ fn set_lcd_mode(ctx: &mut Emulator) {
 
     if stat_int_requested.is_stat() && check_stat_conditions(ctx, &stat_int_requested) {
         ctx.dispatcher
-            .dispatch(Action::interrupt_request(Interrupts::LCDStat as u8));
+            .dispatch(Action::request_interrupt(Interrupts::LCDStat as u8));
         update_prev_stat_condition(ctx, stat_int_requested, current_line);
     }
 }
