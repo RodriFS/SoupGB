@@ -41,7 +41,7 @@ pub fn update_tima(ctx: &mut Emulator) {
         }
         ctx.memory.set_tima(new_tima);
     }
-    ctx.memory.prev_bit = selected_bit;
+    ctx.memory.prev_bit = bit_enabled;
 }
 
 pub fn update(ctx: &mut Emulator) {
