@@ -60,7 +60,8 @@ pub struct Memory {
     dma_copy_address: u16,
     dma_copy_in_progress: bool,
     dma_cursor: u16,
-    pub prev_bit: u16,
+    pub prev_timer_bit: u16,
+    pub prev_joypad_bit: u8,
     pub tima_reloading: bool,
     pub prev_stat_condition: PrevStatCond,
 }
@@ -115,7 +116,8 @@ impl Memory {
             dma_copy_address: 0,
             dma_copy_in_progress: false,
             dma_cursor: 0,
-            prev_bit: 0,
+            prev_timer_bit: 0,
+            prev_joypad_bit: 0,
             tima_reloading: false,
             prev_stat_condition: PrevStatCond::OAM, // everything following oam recognized.
         }

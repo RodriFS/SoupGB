@@ -6,6 +6,7 @@ pub mod dispatcher;
 pub mod emulator;
 pub mod gpu;
 pub mod interrupts;
+pub mod joypad;
 pub mod memory;
 pub mod registers;
 pub mod timers;

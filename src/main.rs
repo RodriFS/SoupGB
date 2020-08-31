@@ -4,6 +4,7 @@ use soup_gb::cpu;
 use soup_gb::debugger::print_debug;
 use soup_gb::emulator::Emulator;
 use soup_gb::interrupts;
+use soup_gb::joypad;
 use std::fs::File;
 use std::io::Read;
 use std::time::Instant;
@@ -41,6 +42,7 @@ pub fn main() {
             &emulator.registers,
         );
         cpu::update(&mut emulator);
+        joypad::update(&mut emulator, &window);
         if emulator.frame_buffer.len() == buf_len {
             // if emulator.memory.get_ly() == 143 && emulator.memory.lcd_mode() == LcdMode::HBlank {
             match window.update_with_buffer(&emulator.frame_buffer, SCREEN_WIDTH, SCREEN_HEIGHT) {
