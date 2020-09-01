@@ -1,4 +1,5 @@
 pub mod alu;
+pub mod cartridge;
 pub mod constants;
 pub mod cpu;
 pub mod debugger;

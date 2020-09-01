@@ -351,19 +351,6 @@ pub fn print_debug(debug: bool, memory: &Memory, timers: &Timers, registers: &Re
             println!("\n");
         }
     }
-    if DEBUG_MEMORY {
-        let cromb = memory.memory_bank;
-        let cramb = memory.get_bank2_as_low();
-        let mbt = memory.memory_bank_type.clone();
-        let ire = memory.is_ram_enabled;
-        let bm = memory.banking_mode.clone();
-        println!("MEMORY: -----------------------------");
-        println!("Current ROM bank: {:X}", cromb);
-        println!("Current RAM bank: {:X}", cramb);
-        println!("memory bank type: {:?}", mbt);
-        println!("is_ram_enabled: {}", ire);
-        println!("banking_mode: {:?}", bm);
-    }
     if DEBUG_GPU {
         let lcdc = memory.read(0xff40);
         let lcd_stat = memory.read(0xff41);
