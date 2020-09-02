@@ -5,6 +5,7 @@ use soup_gb::debugger::print_debug;
 use soup_gb::emulator::Emulator;
 use soup_gb::interrupts;
 use soup_gb::joypad;
+use soup_gb::memory::LcdMode;
 use std::fs::File;
 use std::io::Read;
 use std::time::Instant;
@@ -29,7 +30,6 @@ pub fn main() {
         });
 
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
-    let buf_len = SCREEN_WIDTH * SCREEN_HEIGHT;
     emulator.debug();
     let mut frame_time = Instant::now();
     let mut frame_counter = 0;
@@ -43,8 +43,7 @@ pub fn main() {
         );
         cpu::update(&mut emulator);
         joypad::update(&mut emulator, &window);
-        if emulator.frame_buffer.len() == buf_len {
-            // if emulator.memory.get_ly() == 143 && emulator.memory.lcd_mode() == LcdMode::HBlank {
+        if emulator.memory.get_ly() == 0x90 && emulator.memory.lcd_mode() == LcdMode::HBlank {
             match window.update_with_buffer(&emulator.frame_buffer, SCREEN_WIDTH, SCREEN_HEIGHT) {
                 Ok(_) => {}
                 Err(e) => {
@@ -52,7 +51,6 @@ pub fn main() {
                     std::process::exit(0);
                 }
             }
-            emulator.frame_buffer.clear();
             if frame_time.elapsed().as_millis() >= 1000 {
                 window.set_title(&format!("FPS: {}", frame_counter));
                 frame_time = Instant::now();

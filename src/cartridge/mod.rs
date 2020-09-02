@@ -7,6 +7,7 @@ pub trait Cartridge {
   fn ram_enabled(&self) -> bool {
     false
   }
+  fn debug(&self);
 }
 
 #[derive(PartialEq, Debug, Clone)]

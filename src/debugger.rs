@@ -351,6 +351,9 @@ pub fn print_debug(debug: bool, memory: &Memory, timers: &Timers, registers: &Re
             println!("\n");
         }
     }
+    if DEBUG_MEMORY {
+        memory.cartridge.debug();
+    }
     if DEBUG_GPU {
         let lcdc = memory.read(0xff40);
         let lcd_stat = memory.read(0xff41);

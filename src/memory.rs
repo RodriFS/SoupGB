@@ -28,7 +28,7 @@ pub enum PrevStatCond {
 }
 
 pub struct Memory {
-    cartridge: Box<dyn Cartridge>,
+    pub cartridge: Box<dyn Cartridge>,
     wram: [u8; 0x2000],
     vram: [u8; 0x2000],
     echo: [u8; 0x1e00],
@@ -43,7 +43,6 @@ pub struct Memory {
     dma_copy_in_progress: bool,
     dma_cursor: u16,
     pub prev_timer_bit: u16,
-    pub prev_joypad_bit: u8,
     pub tima_reloading: bool,
     pub prev_stat_condition: PrevStatCond,
 }
@@ -92,7 +91,6 @@ impl Memory {
             dma_copy_in_progress: false,
             dma_cursor: 0,
             prev_timer_bit: 0,
-            prev_joypad_bit: 0,
             tima_reloading: false,
             prev_stat_condition: PrevStatCond::OAM, // everything following oam recognized.
         }
@@ -514,7 +512,8 @@ impl Memory {
             0xe000..=0xfdff => self.read_echo(address),
             0xfe00..=0xfe9f => self.read_oam(address),
             0xfea0..=0xfeff => 0,
-            0xff00..=0xff0e => self.read_io_ports(address),
+            0xff00 => !self.read_io_ports(address),
+            0xff01..=0xff0e => self.read_io_ports(address),
             0xff0f => self.read_io_ports(address) | 0b1110_0000,
             0xff10..=0xff40 => self.read_io_ports(address),
             0xff41 => {

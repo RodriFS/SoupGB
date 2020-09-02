@@ -290,6 +290,7 @@ fn render_sprites(ctx: &mut Emulator, buffer: &mut Vec<(u8, u8)>) {
 
 fn draw_scan_line(ctx: &mut Emulator) {
     let mut buffer: Vec<(u8, u8)> = vec![(0, 0); SCREEN_WIDTH];
+    let current_line = ctx.memory.get_ly() as usize * SCREEN_WIDTH;
     if ctx.memory.background_enabled() {
         render_background(ctx, &mut buffer);
     }
@@ -299,11 +300,11 @@ fn draw_scan_line(ctx: &mut Emulator) {
     if ctx.memory.sprite_enabled() {
         render_sprites(ctx, &mut buffer);
     }
-    let colored_pixels: Vec<u32> = buffer
+    buffer
         .into_iter()
         .map(|(pixel, palette)| get_color(pixel, palette))
-        .collect();
-    ctx.frame_buffer.extend(colored_pixels);
+        .enumerate()
+        .for_each(|(n, pixel)| ctx.frame_buffer[current_line + n] = pixel)
 }
 
 pub fn update(ctx: &mut Emulator) {
@@ -311,7 +312,6 @@ pub fn update(ctx: &mut Emulator) {
         ctx.timers.scan_line_counter = 0;
         ctx.memory.write_ly(0x00);
         ctx.memory.set_lcd_status(LcdMode::VBlank); // Check
-        ctx.frame_buffer.clear();
         return;
     }
     ctx.timers.scan_line_counter += 4;

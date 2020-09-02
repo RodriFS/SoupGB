@@ -132,4 +132,14 @@ impl Cartridge for MBC1 {
   fn ram_enabled(&self) -> bool {
     self.is_ram_enabled
   }
+
+  fn debug(&self) {
+    println!("CARTRIDGE ------------------------");
+    println!("type: MBC1");
+    println!("Bank: {}", self.memory_bank);
+    println!("ROM Size: {}", self.rom_size);
+    println!("RAM Size: {}", self.ram_size);
+    println!("Banking Mode: {:?}", self.banking_mode);
+    println!("RAM Enabled: {}", self.is_ram_enabled);
+  }
 }

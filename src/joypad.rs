@@ -15,26 +15,27 @@ pub fn update(ctx: &mut Emulator, window: &Window) {
     Key::X,
   ] {
     if window.is_key_down(input) {
+      let p1 = !ctx.memory.read(0xff00) & 0b0011_1111;
       let joypad_reg = match input {
-        Key::Down => 0b10_1000,
-        Key::Up => 0b10_0100,
-        Key::Left => 0b10_0010,
-        Key::Right => 0b10_0001,
-        Key::Enter => 0b01_1000,
-        Key::Space => 0b01_0100,
-        Key::Z => 0b01_0010,
-        Key::X => 0b01_0001,
-        _ => unreachable!(),
+        Key::Down if p1 == 0b10_0000 => 0b1000,
+        Key::Up if p1 == 0b10_0000 => 0b0100,
+        Key::Left if p1 == 0b10_0000 => 0b0010,
+        Key::Right if p1 == 0b10_0000 => 0b0001,
+        Key::Enter if p1 == 0b01_0000 => 0b1000,
+        Key::Space if p1 == 0b01_0000 => 0b0100,
+        Key::Z if p1 == 0b01_0000 => 0b0010,
+        Key::X if p1 == 0b01_0000 => 0b0001,
+        _ => 0,
       };
-      ctx.memory.write(0xff00, joypad_reg | 0b1100_0000);
-      let bit_enabled = joypad_reg & 0b0000_1111;
-      if bit_enabled != 1 && ctx.memory.prev_joypad_bit == 1 {
+      if joypad_reg != 0 {
+        ctx.memory.write(0xff00, p1 | joypad_reg);
         ctx
           .dispatcher
           .dispatch(Action::request_interrupt(Interrupts::Joypad as u8));
+        break;
       }
-      ctx.memory.prev_joypad_bit = bit_enabled;
-      break;
+    } else if window.is_key_released(input) {
+      // ctx.memory.write(0xff00, 0);
     }
   }
 }

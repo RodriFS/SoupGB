@@ -23,4 +23,9 @@ impl Cartridge for RomOnly {
   }
 
   fn write(&mut self, _address: u16, _data: u8) {}
+
+  fn debug(&self) {
+    println!("CARTRIDGE ------------------------");
+    println!("type: ROM ONLY")
+  }
 }

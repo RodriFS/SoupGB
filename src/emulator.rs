@@ -11,7 +11,7 @@ pub struct Emulator {
   pub registers: Registers,
   pub memory: Memory,
   pub timers: Timers,
-  pub frame_buffer: Vec<u32>,
+  pub frame_buffer: [u32; SCREEN_WIDTH * SCREEN_HEIGHT],
   pub dispatcher: Dispatcher,
 }
 
@@ -22,7 +22,7 @@ impl Emulator {
       registers: Registers::default(),
       memory: Memory::default(),
       timers: Timers::default(),
-      frame_buffer: Vec::with_capacity(SCREEN_WIDTH * SCREEN_HEIGHT),
+      frame_buffer: [0; SCREEN_WIDTH * SCREEN_HEIGHT],
       dispatcher: Dispatcher::default(),
     }
   }
