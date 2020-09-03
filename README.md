@@ -96,6 +96,6 @@ Tests status:
 | mbc1/rom_1Mb           |   👍   |
 | mbc1/rom_2Mb           |   👍   |
 | mbc1/rom_4Mb           |   👍   |
-| mbc1/rom_8Mb           |   ❌   |
-| mbc1/rom_16Mb          |   ❌   |
+| mbc1/rom_8Mb           |   👍   |
+| mbc1/rom_16Mb          |   👍   |
 | mbc1/rom_512kb         |   👍   |

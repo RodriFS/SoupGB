@@ -163,6 +163,7 @@ impl Memory {
                 panic!("MBC case not supported {}", bank_type);
             }
         };
+        self.cartridge.debug();
     }
 
     pub fn s_push(&mut self, data: u16) {

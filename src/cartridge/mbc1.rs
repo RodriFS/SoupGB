@@ -3,7 +3,7 @@ use super::Cartridge;
 
 pub struct MBC1 {
   rom: Vec<u8>,
-  ram: [u8; 0x8000],
+  ram: Vec<u8>,
   memory_bank: u8,
   rom_size: u8,
   ram_size: u8,
@@ -14,19 +14,19 @@ pub struct MBC1 {
 impl MBC1 {
   pub fn new(data: Vec<u8>) -> Self {
     let rom_size = 32 << data[0x148];
-    let ram_size = data[0x149];
+    let ram_size = match data[0x149] {
+      0 => 0,
+      1 => 0x7ff,
+      2 => 0x1fff,
+      3 => 0xffff,
+      _ => panic!("Unsupported ram size"),
+    };
     Self {
       rom: data,
-      ram: [0; 0x8000],
+      ram: vec![0; ram_size],
       memory_bank: 1,
       rom_size: (rom_size as f32 / 16.0) as u8,
-      ram_size: match ram_size {
-        0 => 0,
-        1 => 2,
-        2 => 8,
-        3 => 32,
-        _ => panic!("Unsupported ram size"),
-      },
+      ram_size: (ram_size as f32 / 0x1fff as f32) as u8,
       banking_mode: Bmode::ROM,
       is_ram_enabled: false,
     }
@@ -47,33 +47,28 @@ impl MBC1 {
   fn read_ram(&self, address: u16, bank: u8) -> u8 {
     let ram_bank = bank % 4;
     let ram_address = (address - 0xa000) + (ram_bank as u16 * 0x2000);
-    if self.ram_size == 0
-      || (self.ram_size == 2 && ram_address > 0x800)
-      || (self.ram_size == 8 && ram_address > 0x2000)
-    {
-      return 0xff;
-    }
-    self.ram[ram_address as usize]
+    self
+      .ram
+      .get(ram_address as usize)
+      .unwrap_or(&0xff)
+      .to_owned()
   }
 
   fn write_ram(&mut self, address: u16, bank: u8, data: u8) {
     let ram_bank = bank % 4;
     let ram_address = (address - 0xa000) + (ram_bank as u16 * 0x2000);
-    if self.ram_size == 0
-      || (self.ram_size == 2 && ram_address > 0x800)
-      || (self.ram_size == 8 && ram_address > 0x2000)
-    {
+    if ram_address >= self.ram.len() as u16 {
       return;
     }
     self.ram[ram_address as usize] = data;
   }
 
-  pub fn get_bank2_as_low(&self) -> u8 {
-    if self.banking_mode == Bmode::ROM {
-      0
-    } else {
-      self.memory_bank >> 5
-    }
+  fn get_bank2_as_low(&self) -> u8 {
+    self.memory_bank >> 5
+  }
+
+  fn get_bank2_as_hi(&self) -> u8 {
+    self.memory_bank & 0b0110_0000
   }
 
   fn set_bank1(&mut self, data: u8) {
@@ -97,8 +92,12 @@ impl MBC1 {
 
 impl Cartridge for MBC1 {
   fn read(&self, address: u16) -> u8 {
+    // println!("{}", self.get_bank2_as_low());
     match address {
-      0x0000..=0x3fff => self.read_rom(address, 0),
+      0x0000..=0x3fff if self.banking_mode == Bmode::ROM => self.read_rom(address, 0),
+      0x0000..=0x3fff if self.banking_mode == Bmode::RAM => {
+        self.read_rom(address, self.get_bank2_as_hi() % self.rom_size)
+      }
       0x4000..=0x7fff => self.read_rom(address, self.memory_bank % self.rom_size),
       0xa000..=0xbfff if self.banking_mode == Bmode::ROM => self.read_ram(address, 0),
       0xa000..=0xbfff if self.banking_mode == Bmode::RAM => {
