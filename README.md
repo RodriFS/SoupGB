@@ -91,7 +91,7 @@ Tests status:
 | mbc1/bits_mode         |   👍   |
 | mbc1/bits_ramg         |   👍   |
 | mbc1/multicart_rom_8Mb |   ❌   |
-| mbc1/ram_64kb          |   ❌   |
+| mbc1/ram_64kb          |   👍   |
 | mbc1/ram_256kb         |   👍   |
 | mbc1/rom_1Mb           |   👍   |
 | mbc1/rom_2Mb           |   👍   |
@@ -99,3 +99,13 @@ Tests status:
 | mbc1/rom_8Mb           |   👍   |
 | mbc1/rom_16Mb          |   👍   |
 | mbc1/rom_512kb         |   👍   |
+
+| Test             | Status |
+| ---------------- | :----: |
+| mbc2/bits_ramg   |   👍   |
+| mbc2/bits_romb   |   👍   |
+| mbc2/bits_unused |   👍   |
+| mbc2/ram         |   👍   |
+| mbc2/rom_1Mb     |   👍   |
+| mbc2/rom_2Mb     |   👍   |
+| mbc2/rom_512kb   |   👍   |

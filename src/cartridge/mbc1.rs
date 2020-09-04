@@ -6,7 +6,7 @@ pub struct MBC1 {
   ram: Vec<u8>,
   memory_bank: u8,
   rom_size: u8,
-  ram_size: u8,
+  ram_size: u16,
   banking_mode: Bmode,
   is_ram_enabled: bool,
 }
@@ -26,7 +26,7 @@ impl MBC1 {
       ram: vec![0; ram_size],
       memory_bank: 1,
       rom_size: (rom_size as f32 / 16.0) as u8,
-      ram_size: (ram_size as f32 / 0x1fff as f32) as u8,
+      ram_size: ram_size as u16,
       banking_mode: Bmode::ROM,
       is_ram_enabled: false,
     }
@@ -45,8 +45,12 @@ impl MBC1 {
   }
 
   fn read_ram(&self, address: u16, bank: u8) -> u8 {
-    let ram_bank = bank % 4;
-    let ram_address = (address - 0xa000) + (ram_bank as u16 * 0x2000);
+    let ram_address = if self.ram_size > 0x1fff {
+      let ram_bank = bank % 4;
+      (address - 0xa000) + (ram_bank as u16 * 0x2000)
+    } else {
+      address - 0xa000
+    };
     self
       .ram
       .get(ram_address as usize)
@@ -55,8 +59,12 @@ impl MBC1 {
   }
 
   fn write_ram(&mut self, address: u16, bank: u8, data: u8) {
-    let ram_bank = bank % 4;
-    let ram_address = (address - 0xa000) + (ram_bank as u16 * 0x2000);
+    let ram_address = if self.ram_size > 0x1fff {
+      let ram_bank = bank % 4;
+      (address - 0xa000) + (ram_bank as u16 * 0x2000)
+    } else {
+      address - 0xa000
+    };
     if ram_address >= self.ram.len() as u16 {
       return;
     }
@@ -92,7 +100,6 @@ impl MBC1 {
 
 impl Cartridge for MBC1 {
   fn read(&self, address: u16) -> u8 {
-    // println!("{}", self.get_bank2_as_low());
     match address {
       0x0000..=0x3fff if self.banking_mode == Bmode::ROM => self.read_rom(address, 0),
       0x0000..=0x3fff if self.banking_mode == Bmode::RAM => {
@@ -137,7 +144,7 @@ impl Cartridge for MBC1 {
     println!("type: MBC1");
     println!("Bank: {}", self.memory_bank);
     println!("ROM Size: {}", self.rom_size);
-    println!("RAM Size: {}", self.ram_size);
+    println!("RAM Size: {:X}", self.ram_size);
     println!("Banking Mode: {:?}", self.banking_mode);
     println!("RAM Enabled: {}", self.is_ram_enabled);
   }

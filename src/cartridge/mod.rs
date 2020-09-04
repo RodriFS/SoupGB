@@ -1,4 +1,5 @@
 pub mod mbc1;
+pub mod mbc2;
 pub mod rom_only;
 
 pub trait Cartridge {
