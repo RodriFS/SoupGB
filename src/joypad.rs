@@ -13,6 +13,7 @@ pub fn update(ctx: &mut Emulator, window: &Window) {
     Key::Space,
     Key::Z,
     Key::X,
+    Key::P,
   ] {
     if window.is_key_down(input) {
       let p1 = !ctx.memory.read(0xff00) & 0b0011_1111;
@@ -25,6 +26,10 @@ pub fn update(ctx: &mut Emulator, window: &Window) {
         Key::Space if p1 == 0b01_0000 => 0b0100,
         Key::Z if p1 == 0b01_0000 => 0b0010,
         Key::X if p1 == 0b01_0000 => 0b0001,
+        Key::P => {
+          ctx.debug();
+          0
+        }
         _ => 0,
       };
       if joypad_reg != 0 {

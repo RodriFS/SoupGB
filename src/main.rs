@@ -30,7 +30,6 @@ pub fn main() {
         });
 
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
-    emulator.debug();
     let mut frame_time = Instant::now();
     let mut frame_counter = 0;
     while window.is_open() && !window.is_key_down(Key::Escape) {

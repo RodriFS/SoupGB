@@ -16,9 +16,9 @@ impl MBC1 {
     let rom_size = 32 << data[0x148];
     let ram_size = match data[0x149] {
       0 => 0,
-      1 => 0x7ff,
-      2 => 0x1fff,
-      3 => 0xffff,
+      1 => 0x800,
+      2 => 0x2000,
+      3 => 0x8000,
       _ => panic!("Unsupported ram size"),
     };
     Self {
@@ -45,7 +45,7 @@ impl MBC1 {
   }
 
   fn read_ram(&self, address: u16, bank: u8) -> u8 {
-    let ram_address = if self.ram_size > 0x1fff {
+    let ram_address = if self.ram_size > 0x2000 {
       let ram_bank = bank % 4;
       (address - 0xa000) + (ram_bank as u16 * 0x2000)
     } else {
@@ -59,7 +59,7 @@ impl MBC1 {
   }
 
   fn write_ram(&mut self, address: u16, bank: u8, data: u8) {
-    let ram_address = if self.ram_size > 0x1fff {
+    let ram_address = if self.ram_size > 0x2000 {
       let ram_bank = bank % 4;
       (address - 0xa000) + (ram_bank as u16 * 0x2000)
     } else {

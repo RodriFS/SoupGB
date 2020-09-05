@@ -1,5 +1,6 @@
 use super::cartridge::mbc1::MBC1;
 use super::cartridge::mbc2::MBC2;
+use super::cartridge::mbc3::MBC3;
 use super::cartridge::rom_only::RomOnly;
 use super::cartridge::Cartridge;
 use super::constants::*;
@@ -129,6 +130,7 @@ impl Memory {
             0x00 => self.cartridge = Box::new(RomOnly::new(cartridge)),
             0x01..=0x03 => self.cartridge = Box::new(MBC1::new(cartridge)),
             0x05 | 0x06 => self.cartridge = Box::new(MBC2::new(cartridge)),
+            0x0f..=0x13 => self.cartridge = Box::new(MBC3::new(cartridge)),
             bank => {
                 let bank_type = match bank {
                     0x08 => "08h  ROM+RAM",
@@ -136,11 +138,6 @@ impl Memory {
                     0x0b => "0Bh  MMM01",
                     0x0c => "0Ch  MMM01+RAM",
                     0x0d => "0Dh  MMM01+RAM+BATTERY",
-                    0x0f => "0Fh  MBC3+TIMER+BATTERY",
-                    0x10 => "10h  MBC3+TIMER+RAM+BATTERY",
-                    0x11 => "11h  MBC3",
-                    0x12 => "12h  MBC3+RAM",
-                    0x13 => "13h  MBC3+RAM+BATTERY",
                     0x15 => "15h  MBC4",
                     0x16 => "16h  MBC4+RAM",
                     0x17 => "17h  MBC4+RAM+BATTERY",
