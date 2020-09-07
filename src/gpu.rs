@@ -170,11 +170,11 @@ fn get_x_pos(window_enabled: bool, sx: u8, wx: u8, pixel_pos: u8) -> u8 {
     }
 }
 
-fn get_y_pos(window_enabled: bool, sy: u8, wy: u8, current_line: u8) -> u8 {
+fn get_y_pos(window_enabled: bool, y: u8, current_line: u8) -> u8 {
     if window_enabled {
-        current_line.wrapping_sub(wy)
+        current_line.wrapping_sub(y)
     } else {
-        current_line.wrapping_add(sy)
+        current_line.wrapping_add(y)
     }
 }
 
@@ -197,51 +197,41 @@ fn has_priority(attributes: u8) -> bool {
     !get_bit_at(attributes, 7)
 }
 
-fn render_background(ctx: &mut Emulator, buffer: &mut Vec<(u8, u8)>) {
-    let palette = ctx.memory.background_palette();
-    let bg_map = ctx.memory.map_select();
-    let Point2D { x: sx, y: sy } = ctx.memory.background_position();
-    let current_line = ctx.memory.get_ly();
-    let y_pos = get_y_pos(false, sy, 0, current_line);
-    let visible_tiles = 256 as u16 / 8;
-    let from = bg_map + (y_pos as u16 / 8) * 32;
+fn render_background(ctx: &mut Emulator, buffer: &mut Vec<(u8, u8)>, props: &RenderProps) {
+    let y_pos = get_y_pos(false, props.sy, props.ly);
+    let from = props.bg_map + (y_pos as u16 / 8) * 32;
+    let to = from + 32;
     let pixel_row = (y_pos % 8) * 2;
-    for (tile_pos, bg_mem) in (from..(from + visible_tiles)).enumerate() {
+    for (tile_pos, bg_mem) in (from..to).enumerate() {
         let (tile1, tile2) = get_tile_ids(ctx, bg_mem);
         let data1 = ctx.memory.read_unchecked(pixel_row as u16 + tile1);
         let data2 = ctx.memory.read_unchecked(pixel_row as u16 + tile2);
         let pixels = make_pixels(data1, data2);
         pixels.iter().enumerate().for_each(|(i, pixel)| {
             let pixel_pos = (tile_pos * 8) + i;
-            let x_pos = get_x_pos(false, sx, 0, pixel_pos as u8) as usize;
+            let x_pos = get_x_pos(false, props.sx, 0, pixel_pos as u8) as usize;
             if x_pos < SCREEN_WIDTH {
-                buffer[x_pos] = (*pixel, palette)
+                buffer[x_pos] = (*pixel, props.palette)
             }
         });
     }
 }
 
-fn render_window(ctx: &mut Emulator, buffer: &mut Vec<(u8, u8)>) {
-    let palette = ctx.memory.background_palette();
-    let bg_map = ctx.memory.map_select();
-    let Point2D { x: sx, y: sy } = ctx.memory.background_position();
-    let Point2D { x: wx, y: wy } = ctx.memory.window_position();
-    let current_line = ctx.memory.get_ly();
-    let window_enabled = ctx.memory.window_enabled() && wy <= current_line;
-    let y_pos = get_y_pos(window_enabled, sy, wy, current_line);
-    let visible_tiles = 256 as u16 / 8;
-    let from = bg_map + (y_pos as u16 / 8) * 32;
+fn render_window(ctx: &mut Emulator, buffer: &mut Vec<(u8, u8)>, props: &RenderProps) {
+    let y_pos = get_y_pos(false, props.wy, props.ly);
+    let from = props.bg_map + (y_pos as u16 / 8) * 32;
+    let to = from + 32;
     let pixel_row = (y_pos % 8) * 2;
-    for (tile_pos, bg_mem) in (from..(from + visible_tiles)).enumerate() {
+    for (tile_pos, bg_mem) in (from..to).enumerate() {
         let (tile1, tile2) = get_tile_ids(ctx, bg_mem);
         let data1 = ctx.memory.read_unchecked(pixel_row as u16 + tile1);
         let data2 = ctx.memory.read_unchecked(pixel_row as u16 + tile2);
         let pixels = make_pixels(data1, data2);
         pixels.iter().enumerate().for_each(|(i, pixel)| {
             let pixel_pos = (tile_pos * 8) + i;
-            let x_pos = get_x_pos(window_enabled, sx, wx, pixel_pos as u8) as usize;
+            let x_pos = get_x_pos(true, 0, props.wx, pixel_pos as u8) as usize;
             if x_pos < SCREEN_WIDTH {
-                buffer[x_pos] = (*pixel, palette)
+                buffer[x_pos] = (*pixel, props.palette)
             }
         });
     }
@@ -288,18 +278,50 @@ fn render_sprites(ctx: &mut Emulator, buffer: &mut Vec<(u8, u8)>) {
     }
 }
 
+struct RenderProps {
+    wx: u8,
+    wy: u8,
+    sx: u8,
+    sy: u8,
+    palette: u8,
+    bg_map: u16,
+    ly: u8,
+}
+
+impl RenderProps {
+    fn new(ctx: &mut Emulator) -> Self {
+        let Point2D { x: sx, y: sy } = ctx.memory.background_position();
+        let Point2D { x: wx, y: wy } = ctx.memory.window_position();
+        let palette = ctx.memory.background_palette();
+        let bg_map = ctx.memory.map_select();
+        let ly = ctx.memory.get_ly();
+        Self {
+            wx,
+            wy,
+            sx,
+            sy,
+            palette,
+            bg_map,
+            ly,
+        }
+    }
+}
+
 fn draw_scan_line(ctx: &mut Emulator) {
     let mut buffer: Vec<(u8, u8)> = vec![(0, 0); SCREEN_WIDTH];
-    let current_line = ctx.memory.get_ly() as usize * SCREEN_WIDTH;
+    let render_props = RenderProps::new(ctx);
+    let window_enabled = ctx.memory.window_enabled() && render_props.wy <= render_props.ly;
     if ctx.memory.background_enabled() {
-        render_background(ctx, &mut buffer);
+        render_background(ctx, &mut buffer, &render_props);
     }
-    if ctx.memory.window_enabled() {
-        render_window(ctx, &mut buffer);
+    if window_enabled {
+        render_window(ctx, &mut buffer, &render_props);
     }
     if ctx.memory.sprite_enabled() {
         render_sprites(ctx, &mut buffer);
     }
+
+    let current_line = render_props.ly as usize * SCREEN_WIDTH;
     buffer
         .into_iter()
         .map(|(pixel, palette)| get_color(pixel, palette))
