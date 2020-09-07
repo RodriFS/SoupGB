@@ -14,6 +14,9 @@ pub fn update(ctx: &mut Emulator, window: &Window) {
     Key::Z,
     Key::X,
     Key::P,
+    Key::B,
+    Key::S,
+    Key::W,
   ] {
     if window.is_key_down(input) {
       let p1 = !ctx.memory.read(0xff00) & 0b0011_1111;
@@ -30,6 +33,18 @@ pub fn update(ctx: &mut Emulator, window: &Window) {
           ctx.debug();
           0
         }
+        Key::B => {
+          ctx.toggle_background();
+          0
+        }
+        Key::S => {
+          ctx.toggle_sprites();
+          0
+        }
+        Key::W => {
+          ctx.toggle_window();
+          0
+        }
         _ => 0,
       };
       if joypad_reg != 0 {
@@ -39,8 +54,6 @@ pub fn update(ctx: &mut Emulator, window: &Window) {
           .dispatch(Action::request_interrupt(Interrupts::Joypad as u8));
         break;
       }
-    } else if window.is_key_released(input) {
-      // ctx.memory.write(0xff00, 0);
     }
   }
 }

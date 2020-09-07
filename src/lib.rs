@@ -9,6 +9,7 @@ pub mod gpu;
 pub mod interrupts;
 pub mod joypad;
 pub mod memory;
+pub mod ppu;
 pub mod registers;
 pub mod timers;
 pub mod utils;

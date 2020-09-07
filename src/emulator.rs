@@ -7,6 +7,9 @@ use super::timers;
 use super::timers::Timers;
 
 pub struct Emulator {
+  pub background_debug: bool,
+  pub sprites_debug: bool,
+  pub window_debug: bool,
   pub debug: bool,
   pub registers: Registers,
   pub memory: Memory,
@@ -18,6 +21,9 @@ pub struct Emulator {
 impl Emulator {
   pub fn default() -> Self {
     Self {
+      background_debug: true,
+      sprites_debug: true,
+      window_debug: true,
       debug: false,
       registers: Registers::default(),
       memory: Memory::default(),
@@ -28,7 +34,19 @@ impl Emulator {
   }
 
   pub fn debug(&mut self) {
-    self.debug = true;
+    self.debug = !self.debug;
+  }
+
+  pub fn toggle_background(&mut self) {
+    self.background_debug = !self.background_debug;
+  }
+
+  pub fn toggle_sprites(&mut self) {
+    self.sprites_debug = !self.sprites_debug;
+  }
+
+  pub fn toggle_window(&mut self) {
+    self.window_debug = !self.window_debug;
   }
 
   pub fn take_cycle(&mut self) {
