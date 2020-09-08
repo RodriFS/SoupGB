@@ -1,4 +1,31 @@
-Tests status:
+# Soup
+
+A gameboy emulator written in rust
+
+# How to run
+
+(Builds not available yet)
+
+```
+cargo run --release ./path/to/file.gb
+```
+
+# Keys
+
+```
+Move: Arrows
+A: x key
+B: z key
+Select: Space
+Start: Enter
+```
+
+# Status
+
+- Audio not supported (yet)
+- Some cartridges are not yet supported. See "Test status"
+
+# Tests status:
 
 ## Blargg
 
@@ -109,3 +136,11 @@ Tests status:
 | mbc2/rom_1Mb     |   👍   |
 | mbc2/rom_2Mb     |   👍   |
 | mbc2/rom_512kb   |   👍   |
+
+| Test |          Status          |
+| ---- | :----------------------: |
+| mbc3 | Supported but not tested |
+
+# Disclaimer
+
+This gameboy emulator was made for academic purposes only. If you're going to use it, please use uncopyrighted or open source games.

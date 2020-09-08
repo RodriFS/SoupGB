@@ -1,4 +1,5 @@
 use super::Cartridge;
+use std::fmt;
 
 pub struct MBC2 {
   rom: Vec<u8>,
@@ -91,11 +92,21 @@ impl Cartridge for MBC2 {
   }
 
   fn debug(&self) {
-    println!("CARTRIDGE ------------------------");
-    println!("type: MBC2");
-    println!("Bank: {}", self.memory_bank);
-    println!("ROM Size: {}", self.rom_size);
-    println!("RAM Size: {:X}", self.ram_size);
-    println!("RAM Enabled: {}", self.is_ram_enabled);
+    println!("{:?}", self);
+  }
+}
+
+impl fmt::Debug for MBC2 {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(
+      f,
+      "CARTRIDGE ------------------------\n\
+        type: MBC2\n\
+        Bank: {}\n\
+        ROM Size: {}\n\
+        RAM Size: {:X}\n\
+        RAM Enabled: {}\n",
+      self.memory_bank, self.rom_size, self.ram_size, self.is_ram_enabled
+    )
   }
 }

@@ -1,5 +1,6 @@
 use super::Cartridge;
 use chrono::{Datelike, Timelike, Utc};
+use std::fmt;
 
 pub struct MBC3 {
   rom: Vec<u8>,
@@ -164,12 +165,22 @@ impl Cartridge for MBC3 {
   }
 
   fn debug(&self) {
-    println!("CARTRIDGE ------------------------");
-    println!("type: MBC3");
-    println!("ROM Bank: {}", self.rom_bank);
-    println!("RAM Bank: {}", self.ram_bank);
-    println!("ROM Size: {}", self.rom_size);
-    println!("RAM Size: {:X}", self.ram_size);
-    println!("RAM Enabled: {}", self.is_ram_enabled);
+    println!("{:?}", self);
+  }
+}
+
+impl fmt::Debug for MBC3 {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(
+      f,
+      "CARTRIDGE ------------------------\n\
+      type: MBC3\n\
+      ROM Bank: {}\n\
+      RAM Bank: {}\n\
+      ROM Size: {}\n\
+      RAM Size: {:X}\n\
+      RAM Enabled: {}\n",
+      self.rom_bank, self.ram_bank, self.rom_size, self.ram_size, self.is_ram_enabled
+    )
   }
 }

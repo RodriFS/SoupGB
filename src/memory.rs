@@ -6,6 +6,7 @@ use super::cartridge::Cartridge;
 use super::constants::*;
 use super::utils::{clear_bit_at, get_bit_at, set_bit_at};
 use byteorder::{BigEndian, ByteOrder};
+use std::fmt;
 use std::io::Write;
 
 pub struct Point2D {
@@ -591,5 +592,75 @@ impl Memory {
             0xffff => self.ie_register = data,
             _ => self.write_io_ports(address, data),
         }
+    }
+}
+
+impl fmt::Debug for Memory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if DEBUG_CPU {
+            let pc = self.get_pc();
+            let sp = self.get_sp();
+            let opcode = self.get_byte_debug();
+            let n16 = self.get_word_debug();
+            let ie = self.read(0xffff);
+            let ifl = self.read(0xff0f);
+            write!(
+                f,
+                "PC: {:04X}  SP: {:04X} -> {:02X}{:02X}\n\
+                00:{:04X}: | {:02X}{:04X}\n\
+                IE: {:02X}|{:b}, IF: {:02X}|{:b}\n\
+                period: {:?}\n",
+                pc,
+                sp,
+                self.read(sp + 1),
+                self.read(sp),
+                pc,
+                opcode,
+                n16,
+                ie,
+                ie,
+                ifl,
+                ifl,
+                self.lcd_mode(),
+            )
+            .unwrap()
+        }
+        if DEBUG_MEMORY {
+            self.cartridge.debug();
+        }
+        if DEBUG_GPU {
+            write!(
+                f,
+                "GPU: -----------------------------\n\
+                LCDC: {:02X}  STAT: {:02X}  LY: {:X} ({})\n\
+                LYC {:02X}\n",
+                self.read(0xff40),
+                self.read(0xff41),
+                self.read(0xff44),
+                self.read(0xff44),
+                self.read(0xff45),
+            )
+            .unwrap();
+        }
+        if DEBUG_TIMERS {
+            write!(
+                f,
+                "TIMERS: -----------------------------\n\
+                Timers frequency: {}\n\
+                Timer enabled: {}\n\
+                0xff04 (DIV) Divider counter: {:02X}\n\
+                0xff05 (TIMA) Timer counter: {:02X}\n\
+                0xff06 (TMA) Timer modulo: {:02X}\n\
+                0xff07 (TAC) Timer control: {:02X}\n",
+                self.get_tac(),
+                self.tac_enabled(),
+                self.get_div(),
+                self.get_tima(),
+                self.get_tma(),
+                self.get_tac(),
+            )
+            .unwrap()
+        }
+        Ok(())
     }
 }

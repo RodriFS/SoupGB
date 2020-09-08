@@ -1,5 +1,7 @@
+use super::constants::*;
 use super::utils::get_bit_at;
 use byteorder::{BigEndian, ByteOrder};
+use std::fmt;
 
 pub enum Flags {
   Z,
@@ -144,5 +146,39 @@ impl Registers {
   }
   pub fn get_l(&self) -> u8 {
     self.l
+  }
+}
+
+impl fmt::Debug for Registers {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    if DEBUG_CPU {
+      write!(
+        f,
+        "CPU: -----------------------------\n\
+        A: {:02X}  F: {:02X}  (AF: {:04X})\n\
+        B: {:02X}  C: {:02X}  (BC: {:04X})\n\
+        D: {:02X}  E: {:02X}  (DE: {:04X})\n\
+        H: {:02X}  L: {:02X}  (HL: {:04X})\n\
+        Z: {}, N: {}, H: {}, C: {}",
+        self.a,
+        self.f,
+        self.get_af(),
+        self.b,
+        self.c,
+        self.get_bc(),
+        self.d,
+        self.e,
+        self.get_de(),
+        self.h,
+        self.l,
+        self.get_hl(),
+        self.get_flag(Flags::Z),
+        self.get_flag(Flags::N),
+        self.get_flag(Flags::H),
+        self.get_flag(Flags::C),
+      )
+      .unwrap()
+    }
+    Ok(())
   }
 }

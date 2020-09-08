@@ -1,3 +1,4 @@
+pub const P1_JOYPAD_ADDRESS: u16 = 0xff00;
 pub const DIVIDER_COUNTER_ADDRESS: u16 = 0xff04; // DIV
 pub const TIMER_COUNTER_ADDRESS: u16 = 0xff05; // TIMA
 pub const TIMER_MODULO_ADDRESS: u16 = 0xff06; // TMA

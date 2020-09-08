@@ -1,4 +1,5 @@
 use super::Cartridge;
+use std::fmt;
 
 #[derive(Default)]
 pub struct RomOnly {
@@ -25,7 +26,16 @@ impl Cartridge for RomOnly {
   fn write(&mut self, _address: u16, _data: u8) {}
 
   fn debug(&self) {
-    println!("CARTRIDGE ------------------------");
-    println!("type: ROM ONLY")
+    println!("{:?}", self);
+  }
+}
+
+impl fmt::Debug for RomOnly {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(
+      f,
+      "CARTRIDGE ------------------------\n\
+      type: ROM ONLY\n"
+    )
   }
 }

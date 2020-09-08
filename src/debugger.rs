@@ -1,6 +1,5 @@
 use super::constants::*;
 use super::memory::Memory;
-use super::registers::Flags;
 use super::registers::Registers;
 use super::timers::Timers;
 
@@ -294,91 +293,10 @@ pub fn print_debug(debug: bool, memory: &Memory, timers: &Timers, registers: &Re
     }
     steps();
     if DEBUG_CPU {
-        let flags = (
-            registers.get_flag(Flags::Z),
-            registers.get_flag(Flags::N),
-            registers.get_flag(Flags::H),
-            registers.get_flag(Flags::C),
-        );
-        let (z, n, h, c) = flags;
-        let reg = (
-            registers.get_af(),
-            registers.get_bc(),
-            registers.get_de(),
-            registers.get_hl(),
-        );
-        let (af, bc, de, hl) = reg;
-        let [reg_a, reg_f] = af.to_be_bytes();
-        let [reg_b, reg_c] = bc.to_be_bytes();
-        let [reg_d, reg_e] = de.to_be_bytes();
-        let [reg_h, reg_l] = hl.to_be_bytes();
         let opcode = memory.get_byte_debug();
-        let n16 = memory.get_word_debug();
-        let pc = memory.get_pc();
-        let sp = memory.get_sp();
-        println!("\nCPU: -----------------------------");
-        println!("A: {:02X}  F: {:02X}  (AF: {:04X})", reg_a, reg_f, af);
-        println!("B: {:02X}  C: {:02X}  (BC: {:04X})", reg_b, reg_c, bc);
-        println!("D: {:02X}  E: {:02X}  (DE: {:04X})", reg_d, reg_e, de);
-        println!("H: {:02X}  L: {:02X}  (HL: {:04X})", reg_h, reg_l, hl);
-        println!("Z: {}, N: {}, H: {}, C: {}", z, n, h, c);
-        println!(
-            "PC: {:04X}  SP: {:04X} -> {:02X}{:02X}",
-            pc,
-            sp,
-            memory.read(sp + 1),
-            memory.read(sp)
-        );
-        println!("00:{:04X}: | {:02X}{:04X}", pc, opcode, n16);
-        let ie = memory.read(0xffff);
-        let ifl = memory.read(0xff0f);
-        println!(
-            "IE: {:02X}|{:b}, IF: {:02X}|{:b}, IME: {}",
-            ie, ie, ifl, ifl, timers.ime
-        );
-        println!(
-            "period: {:?} : {}",
-            memory.lcd_mode(),
-            timers.scan_line_counter
-        );
         print_instruction(opcode, memory);
-        println!("halted: {}", timers.is_halted);
-        let pc = memory.get_pc();
-        if pc == 0xffb8 {
-            for word in 0x8000..0x9bff {
-                print!("[{:04X} -> {:02X}]", word, memory.read_unchecked(word));
-            }
-            println!("\n");
-        }
     }
-    if DEBUG_MEMORY {
-        memory.cartridge.debug();
-    }
-    if DEBUG_GPU {
-        let lcdc = memory.read(0xff40);
-        let lcd_stat = memory.read(0xff41);
-        let ly = memory.read(0xff44);
-        let lyc = memory.read(0xff45);
-        println!("GPU: -----------------------------");
-        println!(
-            "LCDC: {:02X}  STAT: {:02X}  LY: {:X} ({})",
-            lcdc, lcd_stat, ly, ly
-        );
-        println!("LYC {:02X}", lyc);
-    }
-    if DEBUG_TIMERS {
-        let cf = memory.get_tac();
-        let te = memory.tac_enabled();
-        let dr = memory.get_div();
-        let tima = memory.get_tima();
-        let tma = memory.get_tma();
-        let tac = memory.get_tac();
-        println!("TIMERS: -----------------------------");
-        println!("Timers frequency: {}", cf);
-        println!("Timer enabled: {}", te);
-        println!("0xff04 (DIV) Divider counter: {:02X}", dr);
-        println!("0xff05 (TIMA) Timer counter: {:02X}", tima);
-        println!("0xff06 (TMA) Timer modulo: {:02X}", tma);
-        println!("0xff07 (TAC) Timer control: {:02X}", tac);
-    }
+    println!("{:?}", timers);
+    println!("{:?}", registers);
+    println!("{:?}", memory);
 }

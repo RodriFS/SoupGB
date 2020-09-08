@@ -101,18 +101,20 @@ fn has_priority(attributes: u8) -> bool {
   !get_bit_at(attributes, 7)
 }
 
+fn make_tiles(ctx: &mut Emulator, bg_mem: u16, pixel_row: u16) -> Vec<u8> {
+  let (tile1, tile2) = get_tile_ids(ctx, bg_mem);
+  let data1 = ctx.memory.read_unchecked(pixel_row + tile1);
+  let data2 = ctx.memory.read_unchecked(pixel_row + tile2);
+  make_pixels(data1, data2)
+}
+
 fn render_background(ctx: &mut Emulator, buffer: &mut Vec<(u8, u8)>, props: &RenderProps) {
   let y_pos = get_y_pos(false, props.sy, props.ly);
   let from = props.bg_map + (y_pos as u16 / 8) * 32;
   let to = from + 32;
   let pixel_row = (y_pos % 8) * 2;
   (from..to)
-    .flat_map(|bg_mem| {
-      let (tile1, tile2) = get_tile_ids(ctx, bg_mem);
-      let data1 = ctx.memory.read_unchecked(pixel_row as u16 + tile1);
-      let data2 = ctx.memory.read_unchecked(pixel_row as u16 + tile2);
-      make_pixels(data1, data2)
-    })
+    .flat_map(|bg_mem| make_tiles(ctx, bg_mem, pixel_row as u16))
     .enumerate()
     .for_each(|(i, pixel)| {
       let x_pos = get_x_pos(false, props.sx, 0, i as u8) as usize;
@@ -127,19 +129,15 @@ fn render_window(ctx: &mut Emulator, buffer: &mut Vec<(u8, u8)>, props: &RenderP
   let from = props.bg_map + (y_pos as u16 / 8) * 32;
   let to = from + 32;
   let pixel_row = (y_pos % 8) * 2;
-  for (tile_pos, bg_mem) in (from..to).enumerate() {
-    let (tile1, tile2) = get_tile_ids(ctx, bg_mem);
-    let data1 = ctx.memory.read_unchecked(pixel_row as u16 + tile1);
-    let data2 = ctx.memory.read_unchecked(pixel_row as u16 + tile2);
-    let pixels = make_pixels(data1, data2);
-    pixels.iter().enumerate().for_each(|(i, pixel)| {
-      let pixel_pos = (tile_pos * 8) + i;
-      let x_pos = get_x_pos(true, 0, props.wx, pixel_pos as u8) as usize;
+  (from..to)
+    .flat_map(|bg_mem| make_tiles(ctx, bg_mem, pixel_row as u16))
+    .enumerate()
+    .for_each(|(i, pixel)| {
+      let x_pos = get_x_pos(true, 0, props.wx, i as u8) as usize;
       if x_pos < SCREEN_WIDTH {
-        buffer[x_pos] = (*pixel, props.palette)
+        buffer[x_pos] = (pixel, props.palette)
       }
-    });
-  }
+    })
 }
 
 fn render_sprites(ctx: &mut Emulator, buffer: &mut Vec<(u8, u8)>) {

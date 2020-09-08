@@ -1,5 +1,6 @@
 use super::Bmode;
 use super::Cartridge;
+use std::fmt;
 
 pub struct MBC1 {
   rom: Vec<u8>,
@@ -140,12 +141,22 @@ impl Cartridge for MBC1 {
   }
 
   fn debug(&self) {
-    println!("CARTRIDGE ------------------------");
-    println!("type: MBC1");
-    println!("Bank: {}", self.memory_bank);
-    println!("ROM Size: {}", self.rom_size);
-    println!("RAM Size: {:X}", self.ram_size);
-    println!("Banking Mode: {:?}", self.banking_mode);
-    println!("RAM Enabled: {}", self.is_ram_enabled);
+    println!("{:?}", self);
+  }
+}
+
+impl fmt::Debug for MBC1 {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(
+      f,
+      "CARTRIDGE ------------------------\n\
+      type: MBC1\n\
+      Bank: {}\n\
+      ROM Size: {}\n\
+      RAM Size: {:X}\n\
+      Banking Mode: {:?}\n\
+      RAM Enabled: {}\n",
+      self.memory_bank, self.rom_size, self.ram_size, self.banking_mode, self.is_ram_enabled,
+    )
   }
 }

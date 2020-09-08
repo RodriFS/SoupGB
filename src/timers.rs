@@ -1,5 +1,6 @@
 use super::dispatcher::Action;
 use super::emulator::Emulator;
+use std::fmt;
 
 pub struct Timers {
     pub divider_frequency: u32,
@@ -47,4 +48,16 @@ pub fn update_tima(ctx: &mut Emulator) {
 pub fn update(ctx: &mut Emulator) {
     update_div_counter(ctx);
     update_tima(ctx);
+}
+
+impl fmt::Debug for Timers {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "TIMERS ------------------------\n\
+            MASTER ENABLED: {}\n\
+            IS HALTED: {}\n",
+            self.ime, self.is_halted
+        )
+    }
 }
