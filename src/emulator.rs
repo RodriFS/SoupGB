@@ -7,28 +7,46 @@ use super::timers;
 use super::timers::Timers;
 
 pub struct Emulator {
+  pub background_debug: bool,
+  pub sprites_debug: bool,
+  pub window_debug: bool,
   pub debug: bool,
   pub registers: Registers,
   pub memory: Memory,
   pub timers: Timers,
-  pub frame_buffer: Vec<u32>,
+  pub frame_buffer: [u32; SCREEN_WIDTH * SCREEN_HEIGHT],
   pub dispatcher: Dispatcher,
 }
 
 impl Emulator {
   pub fn default() -> Self {
     Self {
+      background_debug: true,
+      sprites_debug: true,
+      window_debug: true,
       debug: false,
       registers: Registers::default(),
       memory: Memory::default(),
       timers: Timers::default(),
-      frame_buffer: Vec::with_capacity(SCREEN_WIDTH * SCREEN_HEIGHT),
+      frame_buffer: [0; SCREEN_WIDTH * SCREEN_HEIGHT],
       dispatcher: Dispatcher::default(),
     }
   }
 
   pub fn debug(&mut self) {
-    self.debug = true;
+    self.debug = !self.debug;
+  }
+
+  pub fn toggle_background(&mut self) {
+    self.background_debug = !self.background_debug;
+  }
+
+  pub fn toggle_sprites(&mut self) {
+    self.sprites_debug = !self.sprites_debug;
+  }
+
+  pub fn toggle_window(&mut self) {
+    self.window_debug = !self.window_debug;
   }
 
   pub fn take_cycle(&mut self) {

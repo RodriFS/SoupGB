@@ -1,9 +1,18 @@
 [package]
-name = "gba"
+name = "soup_gb"
 version = "0.1.0"
 authors = ["rodrifs"]
 edition = "2018"
 
 [dependencies]
 byteorder = "1.3"
-minifb = "0.16"
+minifb = "0.18"
+chrono = "0.4"
+
+[profile.dev.package."*"]
+# Set the default for dependencies in Development mode.
+opt-level = 3
+
+[profile.dev]
+# Turn on a small amount of optimisation in Development mode.
+opt-level = 1

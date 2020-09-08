@@ -1,4 +1,31 @@
-Tests status:
+# Soup
+
+A gameboy emulator written in rust
+
+# How to run
+
+(Builds not available yet)
+
+```
+cargo run --release ./path/to/file.gb
+```
+
+# Keys
+
+```
+Move: Arrows
+A: x key
+B: z key
+Select: Space
+Start: Enter
+```
+
+# Status
+
+- Audio not supported (yet)
+- Some cartridges are not yet supported. See "Test status"
+
+# Tests status:
 
 ## Blargg
 
@@ -61,7 +88,7 @@ Tests status:
 | ppu/intr_2_mode0_timing          |   👍   |
 | ppu/intr_2_mode0_timing_sprites  |   ❌   |
 | ppu/intr_2_mode3_timing          |   👍   |
-| ppu/intr_2_oam_ok_timing         |   ❌   |
+| ppu/intr_2_oam_ok_timing         |   👍   |
 | ppu/lcdon_timing-GS              |   ❌   |
 | ppu/lcdon_write_timing-GS        |   ❌   |
 | ppu/stat_irq_blocking            |   ❌   |
@@ -79,8 +106,8 @@ Tests status:
 | timer/tim11                      |   👍   |
 | timer/tim11_div_trigger          |   👍   |
 | timer/tima_reload                |   👍   |
-| timer/tima_write_reloading       |   ❌   |
-| timer/tma_write_reloading        |   ❌   |
+| timer/tima_write_reloading       |   👍   |
+| timer/tma_write_reloading        |   👍   |
 
 ## Mooneye Emulator Only tests
 
@@ -91,11 +118,29 @@ Tests status:
 | mbc1/bits_mode         |   👍   |
 | mbc1/bits_ramg         |   👍   |
 | mbc1/multicart_rom_8Mb |   ❌   |
-| mbc1/ram_64kb          |   ❌   |
+| mbc1/ram_64kb          |   👍   |
 | mbc1/ram_256kb         |   👍   |
 | mbc1/rom_1Mb           |   👍   |
 | mbc1/rom_2Mb           |   👍   |
 | mbc1/rom_4Mb           |   👍   |
-| mbc1/rom_8Mb           |   ❌   |
-| mbc1/rom_16Mb          |   ❌   |
+| mbc1/rom_8Mb           |   👍   |
+| mbc1/rom_16Mb          |   👍   |
 | mbc1/rom_512kb         |   👍   |
+
+| Test             | Status |
+| ---------------- | :----: |
+| mbc2/bits_ramg   |   👍   |
+| mbc2/bits_romb   |   👍   |
+| mbc2/bits_unused |   👍   |
+| mbc2/ram         |   👍   |
+| mbc2/rom_1Mb     |   👍   |
+| mbc2/rom_2Mb     |   👍   |
+| mbc2/rom_512kb   |   👍   |
+
+| Test |          Status          |
+| ---- | :----------------------: |
+| mbc3 | Supported but not tested |
+
+# Disclaimer
+
+This gameboy emulator was made for academic purposes only. If you're going to use it, please use uncopyrighted or open source games.

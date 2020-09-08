@@ -25,6 +25,14 @@ impl StatCond {
     }
 }
 
+pub enum Interrupts {
+    VBlank = 0,
+    LCDStat = 1,
+    Timer = 2,
+    Serial = 3,
+    Joypad = 4,
+}
+
 pub fn update(ctx: &mut Emulator) {
     let i_f = ctx.memory.read(0xff0f);
     let i_e = ctx.memory.read(0xffff);
@@ -75,16 +83,17 @@ pub fn interrupt_execution(ctx: &mut Emulator, interrupt: u8) -> bool {
     }
 }
 
-pub fn stat_irq(ctx: &Emulator, bit: u8) -> StatCond {
+pub fn stat_irq(ctx: &Emulator, stat: StatCond) -> StatCond {
+    let bit = match stat {
+        StatCond::HBLANK => 3,
+        StatCond::VBlank => 4,
+        StatCond::OAM => 5,
+        StatCond::LYC => 6,
+        _ => unreachable!(),
+    };
     let lcd_status = ctx.memory.read(0xff41);
     if get_bit_at(lcd_status, bit) {
-        match bit {
-            3 => StatCond::HBLANK,
-            4 => StatCond::VBlank,
-            5 => StatCond::OAM,
-            6 => StatCond::LYC,
-            _ => StatCond::None,
-        }
+        stat
     } else {
         StatCond::None
     }

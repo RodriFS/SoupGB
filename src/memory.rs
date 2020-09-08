@@ -1,6 +1,12 @@
+use super::cartridge::mbc1::MBC1;
+use super::cartridge::mbc2::MBC2;
+use super::cartridge::mbc3::MBC3;
+use super::cartridge::rom_only::RomOnly;
+use super::cartridge::Cartridge;
 use super::constants::*;
 use super::utils::{clear_bit_at, get_bit_at, set_bit_at};
 use byteorder::{BigEndian, ByteOrder};
+use std::fmt;
 use std::io::Write;
 
 pub struct Point2D {
@@ -24,44 +30,23 @@ pub enum PrevStatCond {
     OAM,
 }
 
-#[allow(non_camel_case_types)]
-#[derive(Debug, Clone)]
-pub enum MBC {
-    ROM_ONLY,
-    MBC1,
-    MBC2,
-}
-
-#[derive(PartialEq, Debug, Clone)]
-pub enum Bmode {
-    RAM,
-    ROM,
-}
-
 pub struct Memory {
-    pub cartridge_memory: Vec<u8>,
+    pub cartridge: Box<dyn Cartridge>,
     wram: [u8; 0x2000],
-    pub vram: [u8; 0x2000],
-    ram: [u8; 0x8000],
+    vram: [u8; 0x2000],
     echo: [u8; 0x1e00],
-    pub oam: [u8; 0xa0],
+    oam: [u8; 0xa0],
     io_ports: [u8; 0x80],
     hram: [u8; 0x80],
     ie_register: u8,
-    pub memory_bank: u8,
-    pub wram_bank: u8,
-    pub memory_bank_type: MBC,
-    rom_size: u8,
-    ram_size: u8,
-    pub is_ram_enabled: bool,
-    pub banking_mode: Bmode,
+    wram_bank: u8,
     pub stack_pointer: u16,
     program_counter: u16,
     dma_copy_address: u16,
     dma_copy_in_progress: bool,
     dma_cursor: u16,
-    pub prev_bit: u16,
-    pub sched_tima_reload: bool,
+    pub prev_timer_bit: u16,
+    pub tima_reloading: bool,
     pub prev_stat_condition: PrevStatCond,
 }
 
@@ -92,32 +77,24 @@ impl Memory {
         io_ports[0x47] = 0xFC;
         io_ports[0x48] = 0xFF;
         io_ports[0x49] = 0xFF;
-        // io_ports[0x41] = 0x85;
 
         Self {
+            cartridge: Box::new(RomOnly::default()),
             wram: [0; 0x2000],
             vram: [0; 0x2000],
-            ram: [0; 0x8000],
             echo: [0; 0x1e00],
             oam: [0; 0xa0],
             hram: [0; 0x80],
             ie_register: 0,
-            memory_bank_type: MBC::ROM_ONLY,
-            memory_bank: 1,
-            rom_size: 0,
-            ram_size: 0,
-            cartridge_memory: Vec::new(),
             wram_bank: 1,
             io_ports,
-            is_ram_enabled: false,
-            banking_mode: Bmode::ROM,
             stack_pointer: 0xfffe,
             program_counter: 0x100,
             dma_copy_address: 0,
             dma_copy_in_progress: false,
             dma_cursor: 0,
-            prev_bit: 0,
-            sched_tima_reload: false,
+            prev_timer_bit: 0,
+            tima_reloading: false,
             prev_stat_condition: PrevStatCond::OAM, // everything following oam recognized.
         }
     }
@@ -146,33 +123,41 @@ impl Memory {
         BigEndian::read_u16(&[self.read(c + 1), self.read(c)])
     }
 
-    pub fn load_rom(&mut self, cartridge_memory: Vec<u8>) {
-        self.memory_bank_type = match cartridge_memory[0x147] {
-            1 | 2 | 3 => MBC::MBC1,
-            5 | 6 => MBC::MBC2,
-            _ => MBC::ROM_ONLY,
-        };
-        let size = 32 << cartridge_memory[0x148];
-        self.rom_size = (size as f32 / 16.0) as u8;
-        self.ram_size = match cartridge_memory[0x149] {
-            0 => 0,
-            1 => 2,
-            2 => 8,
-            3 => 32,
-            _ => panic!("Unsupported ram size"),
-        };
-        if let Some(value) = cartridge_memory.get(0xff70) {
+    pub fn load_rom(&mut self, cartridge: Vec<u8>) {
+        if let Some(value) = cartridge.get(0xff70) {
             self.wram_bank = *value;
         }
-        self.cartridge_memory = cartridge_memory;
-    }
-
-    fn set_is_ram_enabled(&mut self, value: bool) {
-        self.is_ram_enabled = value;
-    }
-
-    fn set_banking_mode(&mut self, mode: Bmode) {
-        self.banking_mode = mode;
+        match cartridge[0x147] {
+            0x00 => self.cartridge = Box::new(RomOnly::new(cartridge)),
+            0x01..=0x03 => self.cartridge = Box::new(MBC1::new(cartridge)),
+            0x05 | 0x06 => self.cartridge = Box::new(MBC2::new(cartridge)),
+            0x0f..=0x13 => self.cartridge = Box::new(MBC3::new(cartridge)),
+            bank => {
+                let bank_type = match bank {
+                    0x08 => "08h  ROM+RAM",
+                    0x09 => "09h  ROM+RAM+BATTERY",
+                    0x0b => "0Bh  MMM01",
+                    0x0c => "0Ch  MMM01+RAM",
+                    0x0d => "0Dh  MMM01+RAM+BATTERY",
+                    0x15 => "15h  MBC4",
+                    0x16 => "16h  MBC4+RAM",
+                    0x17 => "17h  MBC4+RAM+BATTERY",
+                    0x19 => "19h  MBC5",
+                    0x1a => "1Ah  MBC5+RAM",
+                    0x1b => "1Bh  MBC5+RAM+BATTERY",
+                    0x1c => "1Ch  MBC5+RUMBLE",
+                    0x1d => "1Dh  MBC5+RUMBLE+RAM",
+                    0x1e => "1Eh  MBC5+RUMBLE+RAM+BATTERY",
+                    0xfc => "FCh  POCKET CAMERA",
+                    0xfd => "FDh  BANDAI TAMA5",
+                    0xfe => "FEh  HuC3",
+                    0xff => "FFh  HuC1+RAM+BATTERY",
+                    _ => "Unknown",
+                };
+                panic!("MBC case not supported {}", bank_type);
+            }
+        };
+        self.cartridge.debug();
     }
 
     pub fn s_push(&mut self, data: u16) {
@@ -253,8 +238,7 @@ impl Memory {
         self.read_unchecked(TIMER_CONTROL_ADDRESS)
     }
     pub fn tac_enabled(&self) -> u16 {
-        let timers = self.get_tac() & 0b0000_0111;
-        (timers >> 2) as u16
+        (self.get_tac() >> 2 & 0b1) as u16
     }
     pub fn tac_freq(&self) -> u8 {
         let bits = self.get_tac() & 0b11;
@@ -351,7 +335,7 @@ impl Memory {
         self.read(0xff49)
     }
 
-    pub fn get_lcd_status(&self) -> LcdMode {
+    pub fn lcd_mode(&self) -> LcdMode {
         let lcd_status = self.read(0xff41);
         match lcd_status & 0x3 {
             0x0 => LcdMode::HBlank,
@@ -442,53 +426,12 @@ impl Memory {
 
 // Memory Read/Write functions
 impl Memory {
-    pub fn get_bank2_as_low(&self) -> u8 {
-        if self.banking_mode == Bmode::ROM {
-            0
-        } else {
-            self.memory_bank >> 5
-        }
-    }
-
-    pub fn get_bank2_as_high(&self) -> u8 {
-        self.memory_bank & 0b0110_0000
-    }
-
-    fn set_bank1(&mut self, data: u8) {
-        let lower_bits = data & 0b0001_1111;
-        let upper_bits = self.memory_bank & 0b0110_0000;
-        let rom_bank = lower_bits | upper_bits;
-        if lower_bits == 0 {
-            self.memory_bank = rom_bank + 1;
-        } else {
-            self.memory_bank = rom_bank;
-        }
-    }
-
-    fn set_bank2(&mut self, data: u8) {
-        let lower_bits = self.memory_bank & 0b0001_1111;
-        let upper_bits = (data & 0b0000_0011) << 5;
-        let next_rom_bank = upper_bits | lower_bits;
-        self.memory_bank = next_rom_bank;
-    }
-
     fn write_io_ports(&mut self, address: u16, data: u8) {
         self.io_ports[address as usize - 0xff00] = data;
     }
 
     fn read_io_ports(&self, address: u16) -> u8 {
         self.io_ports[address as usize - 0xff00]
-    }
-
-    fn read_rom(&self, address: u16, bank: u8) -> u8 {
-        let mut rom_address = address;
-        if rom_address > 0x3fff {
-            rom_address -= 0x4000;
-        }
-        self.cartridge_memory
-            .get((rom_address as u32 + (bank as u32 * 0x4000)) as usize)
-            .unwrap_or(&0x0)
-            .to_owned()
     }
 
     fn read_vram(&self, address: u16) -> u8 {
@@ -512,30 +455,6 @@ impl Memory {
     fn write_vram(&mut self, address: u16, data: u8) {
         let vram_address = address - 0x8000;
         self.vram[vram_address as usize] = data;
-    }
-
-    fn read_ram(&self, address: u16, bank: u8) -> u8 {
-        let ram_bank = bank % 4;
-        let ram_address = (address - 0xa000) + (ram_bank as u16 * 0x2000);
-        if self.ram_size == 0
-            || (self.ram_size == 2 && ram_address > 0x800)
-            || (self.ram_size == 8 && ram_address > 0x2000)
-        {
-            return 0xff;
-        }
-        self.ram[ram_address as usize]
-    }
-
-    fn write_ram(&mut self, address: u16, bank: u8, data: u8) {
-        let ram_bank = bank % 4;
-        let ram_address = (address - 0xa000) + (ram_bank as u16 * 0x2000);
-        if self.ram_size == 0
-            || (self.ram_size == 2 && ram_address > 0x800)
-            || (self.ram_size == 8 && ram_address > 0x2000)
-        {
-            return;
-        }
-        self.ram[ram_address as usize] = data;
     }
 
     fn read_wram(&self, address: u16) -> u8 {
@@ -567,112 +486,64 @@ impl Memory {
         self.hram[(address - 0xff80) as usize] = data;
     }
 
-    pub fn handle_bank_type(&mut self, address: u16, data: u8) {
-        match self.memory_bank_type {
-            MBC::ROM_ONLY if address > 0x8000 => {
-                panic!("Trying to write to address greater than 0x8000")
-            }
-            MBC::ROM_ONLY => {}
-            MBC::MBC2 if get_bit_at(address.to_be_bytes()[1], 4) => {}
-            MBC::MBC1 | MBC::MBC2 if address <= 0x1fff => match data & 0xf {
-                0b1010 => self.set_is_ram_enabled(true),
-                _ => self.set_is_ram_enabled(false),
-            },
-            MBC::MBC1 if (address >= 0x2000) && (address <= 0x3fff) => self.set_bank1(data),
-            MBC::MBC2 if (address >= 0x2000) && (address <= 0x3fff) => self.set_bank1(data),
-            MBC::MBC1 if (address >= 0x4000) && (address <= 0x5fff) => self.set_bank2(data),
-            MBC::MBC1 if (address >= 0x6000) && (address <= 0x7FFF) => match data & 0b1 {
-                0x0 => self.set_banking_mode(Bmode::ROM),
-                0x1 => self.set_banking_mode(Bmode::RAM),
-                _ => panic!("Unsupported banking mode"),
-            },
-            _ => {
-                let bank_type = match self.cartridge_memory[0x147] {
-                    0x00 => "00h  ROM ONLY",
-                    0x01 => "01h  MBC1",
-                    0x02 => "02h  MBC1+RAM",
-                    0x03 => "03h  MBC1+RAM+BATTERY",
-                    0x05 => "05h  MBC2",
-                    0x06 => "06h  MBC2+BATTERY",
-                    0x08 => "08h  ROM+RAM",
-                    0x09 => "09h  ROM+RAM+BATTERY",
-                    0x0b => "0Bh  MMM01",
-                    0x0c => "0Ch  MMM01+RAM",
-                    0x0d => "0Dh  MMM01+RAM+BATTERY",
-                    0x0f => "0Fh  MBC3+TIMER+BATTERY",
-                    0x10 => "10h  MBC3+TIMER+RAM+BATTERY",
-                    0x11 => "11h  MBC3",
-                    0x12 => "12h  MBC3+RAM",
-                    0x13 => "13h  MBC3+RAM+BATTERY",
-                    0x15 => "15h  MBC4",
-                    0x16 => "16h  MBC4+RAM",
-                    0x17 => "17h  MBC4+RAM+BATTERY",
-                    0x19 => "19h  MBC5",
-                    0x1a => "1Ah  MBC5+RAM",
-                    0x1b => "1Bh  MBC5+RAM+BATTERY",
-                    0x1c => "1Ch  MBC5+RUMBLE",
-                    0x1d => "1Dh  MBC5+RUMBLE+RAM",
-                    0x1e => "1Eh  MBC5+RUMBLE+RAM+BATTERY",
-                    0xfc => "FCh  POCKET CAMERA",
-                    0xfd => "FDh  BANDAI TAMA5",
-                    0xfe => "FEh  HuC3",
-                    0xff => "FFh  HuC1+RAM+BATTERY",
-                    _ => "Unknown",
-                };
-                panic!("MBC case not supported {}", bank_type);
-            }
-        };
-    }
-
     pub fn read(&self, address: u16) -> u8 {
         match address {
             0x8000..=0x9fff if self.dma_copy_in_progress => 0xff,
+            0x8000..=0x9fff if self.lcd_mode() == LcdMode::ReadVRAM => 0xff,
             0xfe00..=0xfe9f if self.dma_copy_in_progress => 0xff,
-            0xa000..=0xbfff if !self.is_ram_enabled => 0xff,
+            0xa000..=0xbfff if !self.cartridge.ram_enabled() => 0xff,
             0xfe00..=0xfe9f if self.dma_copy_in_progress => 0xff,
+            0xfe00..=0xfe9f if self.lcd_mode() == LcdMode::ReadOAM => 0xff,
+            0xfe00..=0xfe9f if self.lcd_mode() == LcdMode::ReadVRAM => 0xff,
             _ => self.read_unchecked(address),
         }
     }
     pub fn read_unchecked(&self, address: u16) -> u8 {
         match address {
-            0x0000..=0x3fff => self.read_rom(address, 0),
-            0x4000..=0x7fff => {
-                if self.rom_size == 0 {
-                    self.read_rom(address, 1)
-                } else {
-                    self.read_rom(address, self.memory_bank % self.rom_size)
-                }
-            }
+            0x0000..=0x7fff => self.cartridge.read(address),
             0x8000..=0x9fff => self.read_vram(address),
-            0xa000..=0xbfff if self.banking_mode == Bmode::ROM => self.read_ram(address, 0),
-            0xa000..=0xbfff if self.banking_mode == Bmode::RAM => {
-                self.read_ram(address, self.get_bank2_as_low())
-            }
+            0xa000..=0xbfff => self.cartridge.read(address),
             0xc000..=0xdfff => self.read_wram(address),
             0xe000..=0xfdff => self.read_echo(address),
             0xfe00..=0xfe9f => self.read_oam(address),
             0xfea0..=0xfeff => 0,
-            0xff00..=0xff0e => self.read_io_ports(address),
+            0xff00 => !self.read_io_ports(address),
+            0xff01..=0xff0e => self.read_io_ports(address),
             0xff0f => self.read_io_ports(address) | 0b1110_0000,
             0xff10..=0xff40 => self.read_io_ports(address),
-            0xff41 => self.read_io_ports(address) | 0b1000_0000,
+            0xff41 => {
+                let stat = self.read_io_ports(address) | 0b1000_0000;
+                if !self.is_lcd_enabled() {
+                    return stat & 0b1111_1000; // Bits 0-2 return '0' when the LCD is off.
+                }
+                stat
+            }
             0xff42..=0xff7f => self.read_io_ports(address),
             0xff80..=0xfffe => self.read_hram(address),
             0xffff => self.ie_register,
-            _ => panic!("Unsupported memory address read: {:04X}", address),
         }
     }
     pub fn write(&mut self, address: u16, data: u8) {
         match address {
             0x8000..=0x9fff if self.dma_copy_in_progress => {}
+            0x8000..=0x9fff if self.lcd_mode() == LcdMode::ReadVRAM => {}
             0xfe00..=0xfe9f if self.dma_copy_in_progress => {}
-            0xa000..=0xbfff if !self.is_ram_enabled => {}
+            0xa000..=0xbfff if !self.cartridge.ram_enabled() => {}
             0xfe00..=0xfe9f if self.dma_copy_in_progress => {}
+            0xfe00..=0xfe9f if self.lcd_mode() == LcdMode::ReadOAM => {}
+            0xfe00..=0xfe9f if self.lcd_mode() == LcdMode::ReadVRAM => {}
+            // Writes to DIV resets DIV and counter
             0xff04 => {
                 self.write_io_ports(0xff03, 0);
                 self.write_io_ports(0xff04, 0);
             }
-            0xff05 if self.sched_tima_reload => {}
+            // Write to TIMA ignored
+            0xff05 if self.tima_reloading => {}
+            // Write to TMA also loads TIMA
+            0xff06 if self.tima_reloading => {
+                self.write_unchecked(0xff05, data);
+                self.write_unchecked(0xff06, data);
+            }
             0xff41 => {
                 let stat_register = self.read_unchecked(address) & 0b1000_0111;
                 let new_stat_register = data & 0b0111_1000;
@@ -687,12 +558,9 @@ impl Memory {
     }
     pub fn write_unchecked(&mut self, address: u16, data: u8) {
         match address {
-            0x0000..=0x7fff => self.handle_bank_type(address, data),
+            0x0000..=0x7fff => self.cartridge.write(address, data),
             0x8000..=0x9FFF => self.write_vram(address, data),
-            0xa000..=0xbfff if self.banking_mode == Bmode::ROM => self.write_ram(address, 0, data),
-            0xa000..=0xbfff if self.banking_mode == Bmode::RAM => {
-                self.write_ram(address, self.get_bank2_as_low(), data);
-            }
+            0xa000..=0xbfff => self.cartridge.write(address, data),
             0xc000..=0xdfff => self.write_wram(address, data),
             0xe000..=0xfdff => self.write_echo(address, data),
             0xfe00..=0xfe9f => self.write_oam(address, data),
@@ -724,5 +592,75 @@ impl Memory {
             0xffff => self.ie_register = data,
             _ => self.write_io_ports(address, data),
         }
+    }
+}
+
+impl fmt::Debug for Memory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if DEBUG_CPU {
+            let pc = self.get_pc();
+            let sp = self.get_sp();
+            let opcode = self.get_byte_debug();
+            let n16 = self.get_word_debug();
+            let ie = self.read(0xffff);
+            let ifl = self.read(0xff0f);
+            write!(
+                f,
+                "PC: {:04X}  SP: {:04X} -> {:02X}{:02X}\n\
+                00:{:04X}: | {:02X}{:04X}\n\
+                IE: {:02X}|{:b}, IF: {:02X}|{:b}\n\
+                period: {:?}\n",
+                pc,
+                sp,
+                self.read(sp + 1),
+                self.read(sp),
+                pc,
+                opcode,
+                n16,
+                ie,
+                ie,
+                ifl,
+                ifl,
+                self.lcd_mode(),
+            )
+            .unwrap()
+        }
+        if DEBUG_MEMORY {
+            self.cartridge.debug();
+        }
+        if DEBUG_GPU {
+            write!(
+                f,
+                "GPU: -----------------------------\n\
+                LCDC: {:02X}  STAT: {:02X}  LY: {:X} ({})\n\
+                LYC {:02X}\n",
+                self.read(0xff40),
+                self.read(0xff41),
+                self.read(0xff44),
+                self.read(0xff44),
+                self.read(0xff45),
+            )
+            .unwrap();
+        }
+        if DEBUG_TIMERS {
+            write!(
+                f,
+                "TIMERS: -----------------------------\n\
+                Timers frequency: {}\n\
+                Timer enabled: {}\n\
+                0xff04 (DIV) Divider counter: {:02X}\n\
+                0xff05 (TIMA) Timer counter: {:02X}\n\
+                0xff06 (TMA) Timer modulo: {:02X}\n\
+                0xff07 (TAC) Timer control: {:02X}\n",
+                self.get_tac(),
+                self.tac_enabled(),
+                self.get_div(),
+                self.get_tima(),
+                self.get_tma(),
+                self.get_tac(),
+            )
+            .unwrap()
+        }
+        Ok(())
     }
 }

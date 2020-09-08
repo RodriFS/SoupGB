@@ -1,14 +1,9 @@
-use super::cpu;
-#[allow(unused_imports)]
-use super::dispatcher::Action;
-use super::emulator::Emulator;
-use super::interrupts;
-#[allow(unused_imports)]
-use super::memory::LcdMode;
-#[allow(unused_imports)]
-use super::utils::*;
-
-#[cfg(test)]
+use soup_gb::cpu;
+use soup_gb::dispatcher::Action;
+use soup_gb::emulator::Emulator;
+use soup_gb::interrupts;
+use soup_gb::memory::LcdMode;
+use soup_gb::utils::*;
 
 fn assert_pc_byte_and_sp(emulator: &mut Emulator, pc: u16, byte: u8, sp: u8) {
   assert_eq!(emulator.memory.get_pc(), pc);
@@ -16,17 +11,40 @@ fn assert_pc_byte_and_sp(emulator: &mut Emulator, pc: u16, byte: u8, sp: u8) {
   assert_eq!(emulator.memory.read(emulator.memory.get_sp()), sp);
 }
 
-#[allow(dead_code)]
 fn run_cpu(ctx: &mut Emulator) {
   interrupts::update(ctx);
   cpu::update(ctx);
 }
 
 #[test]
+fn line_0_timing_test() {
+  // Mode 2 test
+  let rom = vec![0; 0x200];
+
+  let mut emulator = Emulator::default();
+  emulator.load_rom(rom);
+
+  while emulator.memory.get_ly() != 0 || emulator.memory.lcd_mode() != LcdMode::ReadOAM {
+    run_cpu(&mut emulator);
+  }
+  assert_eq!(emulator.memory.get_ly(), 0);
+  assert_eq!(emulator.memory.lcd_mode(), LcdMode::ReadOAM);
+  assert_eq!(emulator.timers.scan_line_counter, 4);
+  for _ in (4..80).step_by(4) {
+    run_cpu(&mut emulator);
+    assert_eq!(emulator.memory.get_ly(), 0);
+    assert_eq!(emulator.memory.lcd_mode(), LcdMode::ReadOAM);
+  }
+  run_cpu(&mut emulator);
+  assert_eq!(emulator.memory.get_ly(), 0);
+  assert_eq!(emulator.memory.lcd_mode(), LcdMode::ReadVRAM);
+}
+
+#[test]
 fn line_144_timing_test() {
   let rom = vec![0; 0x200];
 
-  let mut emulator = super::emulator::Emulator::default();
+  let mut emulator = Emulator::default();
   emulator.load_rom(rom);
 
   while emulator.memory.get_ly() < 144 {
@@ -37,20 +55,20 @@ fn line_144_timing_test() {
   emulator.dispatcher.dispatch(Action::ime1); // ime enabled next cycle
   assert!(!emulator.timers.ime);
   assert_eq!(emulator.memory.get_ly(), 144);
-  assert_eq!(emulator.memory.get_lcd_status(), LcdMode::HBlank);
+  assert_eq!(emulator.memory.lcd_mode(), LcdMode::HBlank);
   assert!(!get_bit_at(emulator.memory.read(0xff0f), 0));
   // clock 4
   run_cpu(&mut emulator);
   assert!(emulator.timers.ime);
   assert_eq!(emulator.memory.get_ly(), 144);
-  assert_eq!(emulator.memory.get_lcd_status(), LcdMode::VBlank);
+  assert_eq!(emulator.memory.lcd_mode(), LcdMode::VBlank);
   assert!(get_bit_at(emulator.memory.read(0xff0f), 0));
   // clock 8-452
   // 456 - 8 (previous 2 clocks) - 20 (interrupt takes 5 cycles)
   for _ in (0..428).step_by(4) {
     run_cpu(&mut emulator);
     assert_eq!(emulator.memory.get_ly(), 144);
-    assert_eq!(emulator.memory.get_lcd_status(), LcdMode::VBlank);
+    assert_eq!(emulator.memory.lcd_mode(), LcdMode::VBlank);
     assert!(!get_bit_at(emulator.memory.read(0xff0f), 0));
   }
   // next line
@@ -63,7 +81,7 @@ fn halt_ime_1() {
   let boot = vec![0; 0x100];
   let rom = [boot, vec![0xfb, 0x00, 0x76, 0x3c, 0x04], vec![0; 0x47]].concat();
 
-  let mut emulator = super::emulator::Emulator::default();
+  let mut emulator = Emulator::default();
   emulator.load_rom(rom);
 
   // IME=1
@@ -106,7 +124,7 @@ fn halt_ime_0() {
   let boot = vec![0; 0x100];
   let rom = [boot, vec![0xf3, 0x00, 0x76, 0x3c, 0x04], vec![0; 0x47]].concat();
 
-  let mut emulator = super::emulator::Emulator::default();
+  let mut emulator = Emulator::default();
   emulator.load_rom(rom);
 
   // IME=0

@@ -1,5 +1,6 @@
+use super::dispatcher::Action;
 use super::emulator::Emulator;
-use super::interrupts::request_interrupt;
+use std::fmt;
 
 pub struct Timers {
     pub divider_frequency: u32,
@@ -31,29 +32,32 @@ pub fn update_div_counter(ctx: &mut Emulator) {
     ctx.memory.set_div_counter(result);
 }
 
-pub fn cc_tima_reload(ctx: &mut Emulator) {
-    if ctx.memory.sched_tima_reload {
-        ctx.memory.set_tima(ctx.memory.get_tma());
-        request_interrupt(ctx, 2);
-        ctx.memory.sched_tima_reload = false;
-    }
-}
-
 pub fn update_tima(ctx: &mut Emulator) {
-    cc_tima_reload(ctx);
-    let selected_bit =
-        (ctx.memory.get_div_counter() >> ctx.memory.tac_freq()) & 0b1 & ctx.memory.tac_enabled();
-    if !selected_bit & ctx.memory.prev_bit == 1 {
+    let selected_bit = ctx.memory.get_div_counter() >> ctx.memory.tac_freq() & 0b1;
+    let bit_enabled = selected_bit & ctx.memory.tac_enabled();
+    if ((bit_enabled ^ 0b1) & ctx.memory.prev_timer_bit) == 1 {
         let new_tima = ctx.memory.get_tima().wrapping_add(1);
-        ctx.memory.set_tima(new_tima);
         if new_tima == 0 {
-            ctx.memory.sched_tima_reload = true;
+            ctx.dispatcher.dispatch(Action::reload_tima(true));
         }
+        ctx.memory.set_tima(new_tima);
     }
-    ctx.memory.prev_bit = selected_bit;
+    ctx.memory.prev_timer_bit = bit_enabled;
 }
 
 pub fn update(ctx: &mut Emulator) {
     update_div_counter(ctx);
     update_tima(ctx);
+}
+
+impl fmt::Debug for Timers {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "TIMERS ------------------------\n\
+            MASTER ENABLED: {}\n\
+            IS HALTED: {}\n",
+            self.ime, self.is_halted
+        )
+    }
 }
