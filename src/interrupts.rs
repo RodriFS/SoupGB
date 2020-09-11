@@ -61,10 +61,7 @@ pub fn interrupt_execution(ctx: &mut Emulator, interrupt: u8) -> bool {
     let pc = ctx.memory.get_pc();
     ctx.s_push_hi(pc);
     let interrupt_enable = ctx.memory.read(0xffff);
-    if !get_bit_at(interrupt_enable, interrupt) {
-        ctx.memory.set_pc(0);
-        true
-    } else {
+    if get_bit_at(interrupt_enable, interrupt) {
         ctx.s_push_lo(pc);
         let i_f = ctx.memory.read(0xff0f);
         let clear_request = clear_bit_at(i_f, interrupt);
@@ -80,6 +77,9 @@ pub fn interrupt_execution(ctx: &mut Emulator, interrupt: u8) -> bool {
         ctx.memory.set_pc(new_pc as u16);
         ctx.take_cycle();
         false
+    } else {
+        ctx.memory.set_pc(0);
+        true
     }
 }
 
