@@ -11,15 +11,11 @@ use apu_timer::ApuTimer;
 use frame_seq::FrameSequencer;
 use std::cell::RefCell;
 use std::rc::Rc;
-// use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-// use cpal::{Device, Stream};
-// use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::Sender;
 use sweep::Sweep;
 
 pub struct Apu {
-  // sender: Sender<f32>,
-  // pub device: Device,
-  // pub stream: Stream,
+  sender: Option<Sender<f32>>,
   frame_seq: Rc<RefCell<FrameSequencer>>,
   pub channel1: Channel,
   pub channel2: Channel,
@@ -33,13 +29,9 @@ pub struct Apu {
 
 impl Apu {
   pub fn default() -> Self {
-    // let (tx, rx) = channel();
-    // let (device, stream, _sample_rate) = initialize_cpal(rx);
     let frame_seq = Rc::new(RefCell::new(FrameSequencer::new()));
     Self {
-      // sender: tx,
-      // device,
-      // stream,
+      sender: None,
       channel1: Channel::new(0b0011_1111, 0, frame_seq.clone()),
       channel2: Channel::new(0b0011_1111, 1, frame_seq.clone()),
       channel3: Channel::new(0b1111_1111, 2, frame_seq.clone()),
@@ -161,51 +153,22 @@ impl Apu {
     //   self.channel4.get_len_enabled()
     // )
   }
+
+  pub fn load_sender(&mut self, sender: Sender<f32>) {
+    self.sender = Some(sender);
+  }
 }
 
 pub fn update(ctx: &mut Emulator) {
   ctx.memory.apu.update();
-  // let channel1 = &mut ctx.memory.apu.channel1;
-  // let output = channel1.get_output();
-  // ctx.memory.apu.sender.send(output as f32).unwrap();
-}
-
-// fn initialize_cpal(rx: Receiver<f32>) -> (Device, Stream, f32) {
-//   let host = cpal::default_host();
-//   let device = host
-//     .default_output_device()
-//     .expect("no output device available");
-
-//   let supported_config = device
-//     .default_output_config()
-//     .expect("No default output config");
-
-//   let config = supported_config.config();
-//   let channels = config.channels as usize;
-//   let stream = device.build_output_stream(
-//     &config,
-//     move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-//       let sample = rx.try_recv().unwrap_or(0.0);
-//       write_data(data, channels, sample)
-//     },
-//     move |err| {
-//       eprintln!("an error occurred on the output audio stream: {}", err);
-//     },
-//   );
-//   let stream = stream.unwrap();
-//   stream.play().unwrap();
-//   let sample_rate = config.sample_rate.0 as f32;
-//   (device, stream, sample_rate)
-// }
-
-fn _write_data<T>(output: &mut [T], channels: usize, sample: f32)
-where
-  T: cpal::Sample,
-{
-  for frame in output.chunks_mut(channels) {
-    let value = cpal::Sample::from::<f32>(&sample);
-    for sample in frame.iter_mut() {
-      *sample = value;
-    }
-  }
+  let channel1 = &mut ctx.memory.apu.channel1;
+  let output = channel1.get_output();
+  ctx
+    .memory
+    .apu
+    .sender
+    .as_ref()
+    .unwrap()
+    .send(output as f32)
+    .unwrap();
 }
