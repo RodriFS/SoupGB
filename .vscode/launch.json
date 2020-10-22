@@ -7,11 +7,11 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug unit tests in library 'gba'",
+      "name": "Debug unit tests in library 'soup_gb'",
       "cargo": {
-        "args": ["test", "--no-run", "--lib", "--package=gba"],
+        "args": ["test", "--no-run", "--lib", "--package=soup_gb"],
         "filter": {
-          "name": "gba",
+          "name": "soup_gb",
           "kind": "lib"
         }
       },
@@ -21,25 +21,25 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug executable 'gba'",
+      "name": "Debug executable 'soup_gb'",
       "cargo": {
-        "args": ["build", "--bin=gba", "--package=gba"],
+        "args": ["build", "--bin=soup_gb", "--package=soup_gb"],
         "filter": {
-          "name": "gba",
+          "name": "soup_gb",
           "kind": "bin"
         }
       },
-      "args": ["test_rom/halt_bug.gb"],
+      "args": ["test_rom/dmg_sound/individual/02-len ctr.gb"],
       "cwd": "${workspaceFolder}"
     },
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug unit tests in executable 'gba'",
+      "name": "Debug unit tests in executable 'soup_gb'",
       "cargo": {
-        "args": ["test", "--no-run", "--bin=gba", "--package=gba"],
+        "args": ["test", "--no-run", "--bin=soup_gb", "--package=soup_gb"],
         "filter": {
-          "name": "gba",
+          "name": "soup_gb",
           "kind": "bin"
         }
       },

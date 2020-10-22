@@ -1,3 +1,4 @@
+use super::apu;
 use super::constants::*;
 use super::dispatcher::Dispatcher;
 use super::gpu;
@@ -53,6 +54,7 @@ impl Emulator {
     Dispatcher::run(self);
     gpu::update(self);
     timers::update(self);
+    apu::update(self);
     self.memory.dma_copy_byte();
   }
 

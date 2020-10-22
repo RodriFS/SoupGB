@@ -1,3 +1,4 @@
+use super::apu::Apu;
 use super::cartridge::mbc1::MBC1;
 use super::cartridge::mbc2::MBC2;
 use super::cartridge::mbc3::MBC3;
@@ -32,6 +33,7 @@ pub enum PrevStatCond {
 
 pub struct Memory {
     pub cartridge: Box<dyn Cartridge>,
+    pub apu: Apu,
     wram: [u8; 0x2000],
     vram: [u8; 0x2000],
     echo: [u8; 0x1e00],
@@ -80,6 +82,7 @@ impl Memory {
 
         Self {
             cartridge: Box::new(RomOnly::default()),
+            apu: Apu::default(),
             wram: [0; 0x2000],
             vram: [0; 0x2000],
             echo: [0; 0x1e00],
@@ -510,7 +513,8 @@ impl Memory {
             0xff00 => !self.read_io_ports(address),
             0xff01..=0xff0e => self.read_io_ports(address),
             0xff0f => self.read_io_ports(address) | 0b1110_0000,
-            0xff10..=0xff40 => self.read_io_ports(address),
+            0xff10..=0xff3f => self.apu.read(address),
+            0xff40 => self.read_io_ports(address),
             0xff41 => {
                 let stat = self.read_io_ports(address) | 0b1000_0000;
                 if !self.is_lcd_enabled() {
@@ -573,6 +577,7 @@ impl Memory {
                 print!("{}", c);
                 let _ = out.flush();
             }
+            0xff10..=0xff3f => self.apu.write(address, data),
             0xff40 => {
                 let enabling_lcd = get_bit_at(data, 7);
                 if enabling_lcd {

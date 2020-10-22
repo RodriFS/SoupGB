@@ -1,3 +1,4 @@
+use soup_gb::apu::Apu;
 use soup_gb::cpu;
 use soup_gb::dispatcher::Action;
 use soup_gb::emulator::Emulator;
@@ -176,4 +177,14 @@ fn halt_ime_0() {
 
   assert!(!emulator.timers.is_halted);
   assert_pc_byte_and_sp(&mut emulator, 0x104, 0x04, 0x00);
+}
+
+#[test]
+fn length_counter_load() {
+  let mut apu = Apu::default();
+  apu.write(0xff11, 0xfd);
+  assert_eq!(apu.read(0xff11), 0b0011_1111);
+
+  apu.write(0xff11, 0);
+  assert_eq!(apu.read(0xff11), 0xff);
 }
