@@ -12,24 +12,24 @@ pub struct Channel {
   pub nrx2: u8,
   pub nrx3: u8,
   pub nrx4: u8,
+  lc: u16,
   sweep: Sweep,
   timer: ApuTimer,
-  pub len_ctr_mask: u8,
-  enable_bit: u8,
+  pub len_ctr_mask: u16,
 }
 
 impl Channel {
-  pub fn new(len_ctr_mask: u8, enable_bit: u8, frame_seq: Rc<RefCell<FrameSequencer>>) -> Self {
+  pub fn new(len_ctr_mask: u16, frame_seq: Rc<RefCell<FrameSequencer>>) -> Self {
     Self {
       nrx0: 0,
       nrx1: 0,
       nrx2: 0,
       nrx3: 0,
       nrx4: 0,
+      lc: 0,
       sweep: Sweep::default(),
       timer: ApuTimer::default(),
       len_ctr_mask,
-      enable_bit,
       frame_seq,
     }
   }
@@ -44,29 +44,15 @@ impl Channel {
     self.timer.update(output)
   }
 
-  pub fn update(&mut self) -> u8 {
+  pub fn update(&mut self) -> bool {
     let counter = self.frame_seq.borrow().counter_256;
     self.dec_len_ctr(counter);
-    if self.get_len_ctr() == 0 || !self.get_len_enabled() {
-      0 << self.enable_bit
-    } else {
-      1 << self.enable_bit
-    }
-  }
-
-  fn get_len_ctr(&self) -> u8 {
-    self.nrx1 & self.len_ctr_mask
-  }
-
-  fn set_len_ctr(&mut self, length_counter: u8) {
-    let duty = self.nrx1 & !self.len_ctr_mask;
-    self.nrx1 = duty | length_counter;
+    self.lc == 0 || !self.get_len_enabled()
   }
 
   pub fn dec_len_ctr(&mut self, counter: u16) {
-    let length_counter = self.get_len_ctr();
-    if self.get_len_enabled() && counter == 0 && length_counter != 0 {
-      self.set_len_ctr(length_counter.wrapping_sub(1))
+    if self.get_len_enabled() && counter == 0 && self.lc != 0 {
+      self.lc = self.lc.wrapping_sub(1)
     }
   }
 
@@ -75,28 +61,14 @@ impl Channel {
   }
 
   pub fn set_nrx1(&mut self, data: u8) {
-    let length_counter = data & self.len_ctr_mask;
-    let duty = data & !self.len_ctr_mask;
-    println!(
-      "data: {}, mask: {}, written: {} or {}",
-      data,
-      self.len_ctr_mask,
-      (self.len_ctr_mask as u16)
-        .wrapping_add(1)
-        .wrapping_sub(length_counter as u16) as u8,
-      (-(length_counter as i8)) as u8
-    );
-    self.nrx1 = duty | (-(length_counter as i8)) as u8
-    // self.nrx1 = duty
-    //   | (self.len_ctr_mask as u16)
-    //     .wrapping_add(1)
-    //     .wrapping_sub(length_counter as u16) as u8
+    self.nrx1 = data;
+    self.lc = self.len_ctr_mask - (data & 0b0011_1111) as u16
   }
 
   pub fn set_nrx4(&mut self, data: u8) {
     if get_bit_at(data, 7) {
-      if self.get_len_ctr() == 0 {
-        self.set_len_ctr(self.len_ctr_mask);
+      if self.lc == 0 {
+        self.lc = self.len_ctr_mask;
       }
       self.trigger();
     }

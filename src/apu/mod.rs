@@ -6,7 +6,6 @@ pub mod sweep;
 use super::apu::channel::Channel;
 use super::constants::*;
 use super::emulator::Emulator;
-use super::utils::get_bit_at;
 use apu_timer::ApuTimer;
 use frame_seq::FrameSequencer;
 use std::cell::RefCell;
@@ -32,10 +31,10 @@ impl Apu {
     let frame_seq = Rc::new(RefCell::new(FrameSequencer::new()));
     Self {
       sender: None,
-      channel1: Channel::new(0b0011_1111, 0, frame_seq.clone()),
-      channel2: Channel::new(0b0011_1111, 1, frame_seq.clone()),
-      channel3: Channel::new(0b1111_1111, 2, frame_seq.clone()),
-      channel4: Channel::new(0b0011_1111, 3, frame_seq.clone()),
+      channel1: Channel::new(64, frame_seq.clone()),
+      channel2: Channel::new(64, frame_seq.clone()),
+      channel3: Channel::new(256, frame_seq.clone()),
+      channel4: Channel::new(64, frame_seq.clone()),
       frame_seq,
       nr50: 0,
       nr51: 0,
@@ -45,7 +44,7 @@ impl Apu {
   }
 
   pub fn read(&self, address: u16) -> u8 {
-    let data = match address {
+    match address {
       NR10 => self.channel1.nrx0 | 0x80,
       NR11 => self.channel1.nrx1 | 0x3f,
       NR12 => self.channel1.nrx2,
@@ -71,9 +70,7 @@ impl Apu {
       NR52 => self.nr52 | 0x70,
       0xff30..=0xff3f => self.wave_table[(address - 0xff30) as usize],
       _ => 0xff,
-    };
-    println!("Read address: {:X}, data: {:X}", address, data);
-    data
+    }
   }
 
   pub fn write(&mut self, address: u16, data: u8) {
@@ -85,73 +82,82 @@ impl Apu {
       NR11 => self.channel1.set_nrx1(data),
       NR12 => self.channel1.nrx2 = data,
       NR13 => self.channel1.nrx3 = data,
-      NR14 => self.channel1.set_nrx4(data),
+      NR14 => {
+        self.channel1.set_nrx4(data);
+        self.enable_channel(0);
+      }
       NR20 => self.channel2.nrx0 = data,
       NR21 => self.channel2.set_nrx1(data),
       NR22 => self.channel2.nrx2 = data,
       NR23 => self.channel2.nrx3 = data,
-      NR24 => self.channel2.set_nrx4(data),
+      NR24 => {
+        self.channel2.set_nrx4(data);
+        self.enable_channel(1);
+      }
       NR30 => self.channel3.nrx0 = data,
       NR31 => self.channel3.set_nrx1(data),
       NR32 => self.channel3.nrx2 = data,
       NR33 => self.channel3.nrx3 = data,
-      NR34 => self.channel3.set_nrx4(data),
+      NR34 => {
+        self.channel3.set_nrx4(data);
+        self.enable_channel(2);
+      }
       NR40 => self.channel4.nrx0 = data,
       NR41 => self.channel4.set_nrx1(data),
       NR42 => self.channel4.nrx2 = data,
       NR43 => self.channel4.nrx3 = data,
-      NR44 => self.channel4.set_nrx4(data),
+      NR44 => {
+        self.channel4.set_nrx4(data);
+        self.enable_channel(3);
+      }
       NR50 => self.nr50 = data,
       NR51 => self.nr51 = data,
-      NR52 => self.nr52 = self.write_nr52(data),
+      NR52 => self.write_power_control(data),
       0xff30..=0xff3f => self.wave_table[(address - 0xff30) as usize] = data,
       _ => {}
-    }
-    println!(
-      "Write address: {:X}, data: {:X}, written as: {:X}",
-      address,
-      data,
-      self.read(address)
-    );
+    };
   }
 
   fn is_apu_off(&self, address: u16) -> bool {
-    address != NR52 && address < 0xff30 && !get_bit_at(self.nr52, 7)
+    address != NR52 && address < 0xff30 && self.nr52 >> 7 == 0
   }
 
-  fn write_nr52(&mut self, data: u8) -> u8 {
-    if data & 0b1000_0000 == 0 {
-      for reg in NR10..NR52 {
+  fn enable_channel(&mut self, bit: u8) {
+    let power = self.nr52 & 0b1000_0000;
+    self.nr52 = power | 1 << bit
+  }
+
+  fn write_channel_status(&mut self, data: u8) {
+    let power = self.nr52 & 0b1000_0000;
+    self.nr52 = power | data
+  }
+
+  fn write_power_control(&mut self, data: u8) {
+    let power = data & 0b1000_0000;
+    if power == 0 {
+      for reg in NR10..=NR51 {
         self.write(reg, 0);
       }
     }
-    data & 0b1111_0000 | self.nr52 & 0b0000_1111
+    self.nr52 = power | 0b0000_1111
   }
 
   fn update(&mut self) {
     self.frame_seq.borrow_mut().update();
-    let nr52bit0 = self.channel1.update();
-    let nr52bit1 = self.channel2.update();
-    let nr52bit2 = self.channel3.update();
-    let nr52bit3 = self.channel4.update();
-    self.nr52 = (self.nr52 & 0b1111_0000) | nr52bit0 | nr52bit1 | nr52bit2 | nr52bit3;
-    // println!(
-    //   "NR52: {:X} \n\
-    //   CHL1: {:X}, CH1e: {} \n\
-    //   CHL2: {:X}, CH2e: {} \n\
-    //   CHL3: {:X}, CH3e: {} \n\
-    //   CHL4: {:X}, CH4e: {} \n\
-    //   --------------------",
-    //   self.nr52 | 0x70,
-    //   self.channel1.get_len_ctr(),
-    //   self.channel1.get_len_enabled(),
-    //   self.channel2.get_len_ctr(),
-    //   self.channel2.get_len_enabled(),
-    //   self.channel3.get_len_ctr(),
-    //   self.channel3.get_len_enabled(),
-    //   self.channel4.get_len_ctr(),
-    //   self.channel4.get_len_enabled()
-    // )
+    let mut nr52 = self.nr52;
+    if self.channel1.update() {
+      nr52 &= 0b1111_1110;
+    }
+    if self.channel2.update() {
+      nr52 &= 0b1111_1101;
+    }
+    if self.channel3.update() {
+      nr52 &= 0b1111_1011;
+    }
+    if self.channel4.update() {
+      nr52 &= 0b1111_0111;
+    }
+    self.write_channel_status(nr52);
   }
 
   pub fn load_sender(&mut self, sender: Sender<f32>) {

@@ -14,6 +14,5 @@ impl FrameSequencer {
   pub fn update(&mut self) {
     let (count, overflow) = self.counter_256.overflowing_sub(4);
     self.counter_256 = if overflow { self.value_256 } else { count };
-    // println!("counter: {}", self.counter_256);
   }
 }

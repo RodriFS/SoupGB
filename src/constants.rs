@@ -28,8 +28,8 @@ pub const NR50: u16 = 0xff24;
 pub const NR51: u16 = 0xff25;
 pub const NR52: u16 = 0xff26;
 
-pub const DEBUG_CPU: bool = true;
-pub const DEBUG_MEMORY: bool = true;
+pub const DEBUG_CPU: bool = false;
+pub const DEBUG_MEMORY: bool = false;
 pub const DEBUG_GPU: bool = false;
 pub const DEBUG_TIMERS: bool = false;
 
