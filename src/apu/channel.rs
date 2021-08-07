@@ -5,7 +5,16 @@ use super::Sweep;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+#[derive(PartialEq, Debug)]
+pub enum ChannelNr {
+  Ch1 = 0,
+  Ch2 = 1,
+  Ch3 = 2,
+  Ch4 = 3,
+}
+
 pub struct Channel {
+  tag: ChannelNr,
   frame_seq: Rc<RefCell<FrameSequencer>>,
   pub nrx0: u8,
   pub nrx1: u8,
@@ -15,12 +24,20 @@ pub struct Channel {
   lc: u16,
   sweep: Sweep,
   timer: ApuTimer,
-  pub len_ctr_mask: u16,
+  len_ctr_mask: u16,
+  dac_power_mask: u8,
 }
 
 impl Channel {
-  pub fn new(len_ctr_mask: u16, frame_seq: Rc<RefCell<FrameSequencer>>) -> Self {
+  pub fn new(tag: ChannelNr, frame_seq: Rc<RefCell<FrameSequencer>>) -> Self {
+    let len_ctr_mask = if tag == ChannelNr::Ch3 { 256 } else { 64 };
+    let dac_power_mask = if tag == ChannelNr::Ch3 {
+      0b1000_0000
+    } else {
+      0b1111_1000
+    };
     Self {
+      tag,
       nrx0: 0,
       nrx1: 0,
       nrx2: 0,
@@ -30,6 +47,7 @@ impl Channel {
       sweep: Sweep::default(),
       timer: ApuTimer::default(),
       len_ctr_mask,
+      dac_power_mask,
       frame_seq,
     }
   }
@@ -45,6 +63,9 @@ impl Channel {
   }
 
   pub fn update(&mut self) -> bool {
+    if !self.get_len_enabled() {
+      return false;
+    }
     let counter = self.frame_seq.borrow().counter_256;
     self.dec_len_ctr(counter);
     self.lc == 0 || !self.get_len_enabled()
@@ -61,8 +82,10 @@ impl Channel {
   }
 
   pub fn set_nrx1(&mut self, data: u8) {
-    self.nrx1 = data;
-    self.lc = self.len_ctr_mask - (data & 0b0011_1111) as u16
+    if self.get_len_enabled() {
+      self.nrx1 = data;
+      self.lc = self.len_ctr_mask - (data & 0b0011_1111) as u16
+    }
   }
 
   pub fn set_nrx4(&mut self, data: u8) {
@@ -73,5 +96,13 @@ impl Channel {
       self.trigger();
     }
     self.nrx4 = data;
+  }
+
+  pub fn is_dac_power_enabled(&self) -> bool {
+    if self.tag == ChannelNr::Ch3 {
+      self.nrx0 & self.dac_power_mask != 0
+    } else {
+      self.nrx2 & self.dac_power_mask != 0
+    }
   }
 }

@@ -3,9 +3,10 @@ pub mod channel;
 pub mod frame_seq;
 pub mod sweep;
 
-use super::apu::channel::Channel;
+use super::apu::channel::{Channel, ChannelNr};
 use super::constants::*;
 use super::emulator::Emulator;
+use super::utils::{clear_bit_at, set_bit_at};
 use apu_timer::ApuTimer;
 use frame_seq::FrameSequencer;
 use std::cell::RefCell;
@@ -31,10 +32,10 @@ impl Apu {
     let frame_seq = Rc::new(RefCell::new(FrameSequencer::new()));
     Self {
       sender: None,
-      channel1: Channel::new(64, frame_seq.clone()),
-      channel2: Channel::new(64, frame_seq.clone()),
-      channel3: Channel::new(256, frame_seq.clone()),
-      channel4: Channel::new(64, frame_seq.clone()),
+      channel1: Channel::new(ChannelNr::Ch1, frame_seq.clone()),
+      channel2: Channel::new(ChannelNr::Ch2, frame_seq.clone()),
+      channel3: Channel::new(ChannelNr::Ch3, frame_seq.clone()),
+      channel4: Channel::new(ChannelNr::Ch4, frame_seq.clone()),
       frame_seq,
       nr50: 0,
       nr51: 0,
@@ -77,38 +78,52 @@ impl Apu {
     if self.is_apu_off(address) {
       return;
     }
+    println!("write: {:x} - {:b}", address, data);
+    println!("NR52: {:b}", self.nr52);
     match address {
       NR10 => self.channel1.nrx0 = data,
       NR11 => self.channel1.set_nrx1(data),
       NR12 => self.channel1.nrx2 = data,
       NR13 => self.channel1.nrx3 = data,
       NR14 => {
+        self.enable_channel(ChannelNr::Ch1);
         self.channel1.set_nrx4(data);
-        self.enable_channel(0);
+        if !self.channel1.is_dac_power_enabled() {
+          self.disable_channel(ChannelNr::Ch1);
+        }
       }
       NR20 => self.channel2.nrx0 = data,
       NR21 => self.channel2.set_nrx1(data),
       NR22 => self.channel2.nrx2 = data,
       NR23 => self.channel2.nrx3 = data,
       NR24 => {
+        self.enable_channel(ChannelNr::Ch2);
         self.channel2.set_nrx4(data);
-        self.enable_channel(1);
+        if !self.channel2.is_dac_power_enabled() {
+          self.disable_channel(ChannelNr::Ch2);
+        }
       }
       NR30 => self.channel3.nrx0 = data,
       NR31 => self.channel3.set_nrx1(data),
       NR32 => self.channel3.nrx2 = data,
       NR33 => self.channel3.nrx3 = data,
       NR34 => {
+        self.enable_channel(ChannelNr::Ch3);
         self.channel3.set_nrx4(data);
-        self.enable_channel(2);
+        if !self.channel3.is_dac_power_enabled() {
+          self.disable_channel(ChannelNr::Ch3);
+        }
       }
       NR40 => self.channel4.nrx0 = data,
       NR41 => self.channel4.set_nrx1(data),
       NR42 => self.channel4.nrx2 = data,
       NR43 => self.channel4.nrx3 = data,
       NR44 => {
+        self.enable_channel(ChannelNr::Ch4);
         self.channel4.set_nrx4(data);
-        self.enable_channel(3);
+        if !self.channel4.is_dac_power_enabled() {
+          self.disable_channel(ChannelNr::Ch4);
+        }
       }
       NR50 => self.nr50 = data,
       NR51 => self.nr51 = data,
@@ -122,14 +137,12 @@ impl Apu {
     address != NR52 && address < 0xff30 && self.nr52 >> 7 == 0
   }
 
-  fn enable_channel(&mut self, bit: u8) {
-    let power = self.nr52 & 0b1000_0000;
-    self.nr52 = power | 1 << bit
+  fn enable_channel(&mut self, channel: ChannelNr) {
+    self.nr52 = set_bit_at(self.nr52, channel as u8);
   }
 
-  fn write_channel_status(&mut self, data: u8) {
-    let power = self.nr52 & 0b1000_0000;
-    self.nr52 = power | data
+  fn disable_channel(&mut self, channel: ChannelNr) {
+    self.nr52 = clear_bit_at(self.nr52, channel as u8);
   }
 
   fn write_power_control(&mut self, data: u8) {
@@ -144,20 +157,18 @@ impl Apu {
 
   fn update(&mut self) {
     self.frame_seq.borrow_mut().update();
-    let mut nr52 = self.nr52;
     if self.channel1.update() {
-      nr52 &= 0b1111_1110;
+      self.disable_channel(ChannelNr::Ch1);
     }
     if self.channel2.update() {
-      nr52 &= 0b1111_1101;
+      self.disable_channel(ChannelNr::Ch2);
     }
     if self.channel3.update() {
-      nr52 &= 0b1111_1011;
+      self.disable_channel(ChannelNr::Ch3);
     }
     if self.channel4.update() {
-      nr52 &= 0b1111_0111;
+      self.disable_channel(ChannelNr::Ch4);
     }
-    self.write_channel_status(nr52);
   }
 
   pub fn load_sender(&mut self, sender: Sender<f32>) {
