@@ -5,7 +5,7 @@ use super::Sweep;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq)]
 pub enum ChannelNr {
   Ch1 = 0,
   Ch2 = 1,
