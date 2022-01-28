@@ -1,4 +1,4 @@
-use super::dispatcher::Action;
+use super::interrupts::Action;
 use super::emulator::Emulator;
 use super::interrupts::{stat_irq, Interrupts, StatCond};
 use super::memory::{LcdMode, PrevStatCond};
@@ -14,7 +14,7 @@ fn set_lcd_mode(ctx: &mut Emulator) {
             if ctx.timers.scan_line_counter >= 80 {
                 // go to mode 3
                 ctx.timers.scan_line_counter = 0;
-                ctx.dispatcher.dispatch(Action::new_mode(LcdMode::ReadVRAM));
+                ctx.interrupts.dispatch(Action::new_mode(LcdMode::ReadVRAM));
             }
         }
         // mode 3
@@ -22,7 +22,7 @@ fn set_lcd_mode(ctx: &mut Emulator) {
             if ctx.timers.scan_line_counter >= 172 {
                 // go to mode 0
                 ctx.timers.scan_line_counter = 0;
-                ctx.dispatcher.dispatch(Action::new_mode(LcdMode::HBlank));
+                ctx.interrupts.dispatch(Action::new_mode(LcdMode::HBlank));
                 stat_int_requested = stat_irq(ctx, StatCond::HBLANK);
                 draw_scan_line(ctx);
             }
@@ -34,8 +34,8 @@ fn set_lcd_mode(ctx: &mut Emulator) {
                 ctx.memory.increment_ly();
                 if ctx.memory.get_ly() > 0x8F {
                     // go to mode 1
-                    ctx.dispatcher.dispatch(Action::new_mode(LcdMode::VBlank));
-                    ctx.dispatcher
+                    ctx.interrupts.dispatch(Action::new_mode(LcdMode::VBlank));
+                    ctx.interrupts
                         .dispatch(Action::request_interrupt(Interrupts::VBlank as u8));
                     stat_int_requested = StatCond::or(
                         stat_irq(ctx, StatCond::VBlank),
@@ -43,7 +43,7 @@ fn set_lcd_mode(ctx: &mut Emulator) {
                     );
                 } else {
                     // go to mode 2
-                    ctx.dispatcher.dispatch(Action::new_mode(LcdMode::ReadOAM));
+                    ctx.interrupts.dispatch(Action::new_mode(LcdMode::ReadOAM));
                     stat_int_requested = stat_irq(ctx, StatCond::OAM);
                 };
             }
@@ -62,7 +62,7 @@ fn set_lcd_mode(ctx: &mut Emulator) {
                 0x00 if ctx.timers.scan_line_counter >= 856 => {
                     // go to mode 2
                     ctx.timers.scan_line_counter = 0;
-                    ctx.dispatcher.dispatch(Action::new_mode(LcdMode::ReadOAM));
+                    ctx.interrupts.dispatch(Action::new_mode(LcdMode::ReadOAM));
                     stat_int_requested = stat_irq(ctx, StatCond::OAM);
                 }
                 _ => {}
@@ -71,7 +71,7 @@ fn set_lcd_mode(ctx: &mut Emulator) {
     };
 
     if stat_int_requested.is_stat() && check_stat_conditions(ctx, &stat_int_requested) {
-        ctx.dispatcher
+        ctx.interrupts
             .dispatch(Action::request_interrupt(Interrupts::LCDStat as u8));
         update_prev_stat_condition(ctx, stat_int_requested, current_line);
     }

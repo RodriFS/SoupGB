@@ -32,7 +32,7 @@ impl RenderProps {
   }
 }
 
-fn get_color(pixel: u8, palette: u8) -> u32 {
+fn get_color(pixel: &u8, palette: &u8) -> u32 {
   let color = match pixel {
     0x00 => palette & 0b0000_0011,
     0x01 => (palette & 0b0000_1100) >> 2,
@@ -108,7 +108,7 @@ fn make_tiles(ctx: &mut Emulator, bg_mem: u16, pixel_row: u16) -> Vec<u8> {
   make_pixels(data1, data2)
 }
 
-fn render_background(ctx: &mut Emulator, buffer: &mut Vec<(u8, u8)>, props: &RenderProps) {
+fn render_background(ctx: &mut Emulator, buffer: &mut [(u8, u8)], props: &RenderProps) {
   let y_pos = get_y_pos(false, props.sy, props.ly);
   let from = props.bg_map + (y_pos as u16 / 8) * 32;
   let to = from + 32;
@@ -124,7 +124,7 @@ fn render_background(ctx: &mut Emulator, buffer: &mut Vec<(u8, u8)>, props: &Ren
     })
 }
 
-fn render_window(ctx: &mut Emulator, buffer: &mut Vec<(u8, u8)>, props: &RenderProps) {
+fn render_window(ctx: &mut Emulator, buffer: &mut [(u8, u8)], props: &RenderProps) {
   let y_pos = get_y_pos(false, props.wy, props.ly);
   let from = props.bg_map + (y_pos as u16 / 8) * 32;
   let to = from + 32;
@@ -140,7 +140,7 @@ fn render_window(ctx: &mut Emulator, buffer: &mut Vec<(u8, u8)>, props: &RenderP
     })
 }
 
-fn render_sprites(ctx: &mut Emulator, buffer: &mut Vec<(u8, u8)>) {
+fn render_sprites(ctx: &mut Emulator, buffer: &mut [(u8, u8)]) {
   let size = ctx.memory.sprite_size();
   let current_line = ctx.memory.get_ly();
   for sprite_pos in (0..160).step_by(4) {
@@ -182,7 +182,7 @@ fn render_sprites(ctx: &mut Emulator, buffer: &mut Vec<(u8, u8)>) {
 }
 
 pub fn draw_scan_line(ctx: &mut Emulator) {
-  let mut buffer: Vec<(u8, u8)> = vec![(0, 0); SCREEN_WIDTH];
+  let mut buffer = ctx.line_buffer;
   let render_props = RenderProps::new(ctx);
   let window_enabled = ctx.memory.window_enabled() && render_props.wy <= render_props.ly;
   if ctx.memory.background_enabled() {
@@ -197,8 +197,8 @@ pub fn draw_scan_line(ctx: &mut Emulator) {
 
   let current_line = render_props.ly as usize * SCREEN_WIDTH;
   buffer
-    .into_iter()
-    .map(|(pixel, palette)| get_color(pixel, palette))
+    .iter()
+    .map(|(pixel, palette)| get_color(&pixel, &palette))
     .enumerate()
     .for_each(|(n, pixel)| ctx.frame_buffer[current_line + n] = pixel)
 }

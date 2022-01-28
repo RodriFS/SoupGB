@@ -1,5 +1,5 @@
 use super::constants::*;
-use super::dispatcher::Action;
+use super::interrupts::Action;
 use super::emulator::Emulator;
 use super::interrupts::Interrupts;
 use minifb::{Key, Window};
@@ -26,6 +26,6 @@ pub fn update(ctx: &mut Emulator, window: &Window) {
 fn request_joypad_interrupt(ctx: &mut Emulator, p1: u8, joypad_reg: u8) {
   ctx.memory.write(P1_JOYPAD_ADDRESS, p1 | joypad_reg);
   ctx
-    .dispatcher
+    .interrupts
     .dispatch(Action::request_interrupt(Interrupts::Joypad as u8));
 }

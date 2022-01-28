@@ -1,6 +1,6 @@
 use soup_gb::apu::Apu;
 use soup_gb::cpu;
-use soup_gb::dispatcher::Action;
+use soup_gb::interrupts::Action;
 use soup_gb::emulator::Emulator;
 use soup_gb::interrupts;
 use soup_gb::memory::LcdMode;
@@ -53,7 +53,7 @@ fn line_144_timing_test() {
   }
   // clock 0
   emulator.memory.write(0xffff, 0b1110_0001); // v-blank interrupt enabled
-  emulator.dispatcher.dispatch(Action::ime1); // ime enabled next cycle
+  emulator.interrupts.dispatch(Action::ime1); // ime enabled next cycle
   assert!(!emulator.timers.ime);
   assert_eq!(emulator.memory.get_ly(), 144);
   assert_eq!(emulator.memory.lcd_mode(), LcdMode::HBlank);

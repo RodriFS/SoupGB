@@ -1,4 +1,4 @@
-use super::dispatcher::Action;
+use super::interrupts::Action;
 use super::emulator::Emulator;
 use std::fmt;
 
@@ -38,7 +38,7 @@ pub fn update_tima(ctx: &mut Emulator) {
     if ((bit_enabled ^ 0b1) & ctx.memory.prev_timer_bit) == 1 {
         let new_tima = ctx.memory.get_tima().wrapping_add(1);
         if new_tima == 0 {
-            ctx.dispatcher.dispatch(Action::reload_tima(true));
+            ctx.interrupts.dispatch(Action::reload_tima(true));
         }
         ctx.memory.set_tima(new_tima);
     }

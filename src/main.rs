@@ -34,7 +34,7 @@ pub fn main() {
             panic!("{}", e);
         });
 
-    window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
+    // window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
     let mut frame_time = Instant::now();
     let mut frame_counter = 0;
 

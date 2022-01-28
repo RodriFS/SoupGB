@@ -1,4 +1,4 @@
-use super::super::utils::get_bit_at;
+use super::super::utils::{clear_bit_at, get_bit_at};
 use super::frame_seq::FrameSequencer;
 use super::ApuTimer;
 use super::Sweep;
@@ -63,26 +63,31 @@ impl Channel {
   }
 
   pub fn update(&mut self) -> bool {
-    if !self.get_len_enabled() {
-      return false;
-    }
     let counter = self.frame_seq.borrow().counter_256;
     self.dec_len_ctr(counter);
-    self.lc == 0 || !self.get_len_enabled()
+    let disable = self.lc == 0 || !self.is_len_enabled() || !self.is_dac_power_enabled();
+    if self.lc == 0 {
+      self.lc = self.len_ctr_mask;
+    }
+    disable
   }
 
   pub fn dec_len_ctr(&mut self, counter: u16) {
-    if self.get_len_enabled() && counter == 0 && self.lc != 0 {
+    if self.is_len_enabled() && counter == 0 && self.lc != 0 {
       self.lc = self.lc.wrapping_sub(1)
     }
   }
 
-  pub fn get_len_enabled(&self) -> bool {
+  pub fn disable_len_enable(&self) {
+    clear_bit_at(self.nrx4, 6);
+  }
+
+  pub fn is_len_enabled(&self) -> bool {
     get_bit_at(self.nrx4, 6)
   }
 
   pub fn set_nrx1(&mut self, data: u8) {
-    if self.get_len_enabled() {
+    if self.is_len_enabled() {
       self.nrx1 = data;
       self.lc = self.len_ctr_mask - (data & 0b0011_1111) as u16
     }
@@ -90,9 +95,6 @@ impl Channel {
 
   pub fn set_nrx4(&mut self, data: u8) {
     if get_bit_at(data, 7) {
-      if self.lc == 0 {
-        self.lc = self.len_ctr_mask;
-      }
       self.trigger();
     }
     self.nrx4 = data;

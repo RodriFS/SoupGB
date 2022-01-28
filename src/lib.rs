@@ -4,7 +4,6 @@ pub mod cartridge;
 pub mod constants;
 pub mod cpu;
 pub mod debugger;
-pub mod dispatcher;
 pub mod emulator;
 pub mod gpu;
 pub mod interrupts;

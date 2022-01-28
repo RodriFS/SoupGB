@@ -6,7 +6,7 @@ pub mod sweep;
 use super::apu::channel::{Channel, ChannelNr};
 use super::constants::*;
 use super::emulator::Emulator;
-use super::utils::{clear_bit_at, get_bit_at, set_bit_at};
+use super::utils::{clear_bit_at, set_bit_at};
 use apu_timer::ApuTimer;
 use frame_seq::FrameSequencer;
 use std::cell::RefCell;
@@ -78,81 +78,29 @@ impl Apu {
     if self.is_apu_off(address) {
       return;
     }
-    println!("write: {:x} - {:b}", address, data);
-    println!("NR52: {:b}", self.nr52);
+    // println!("write: {:x} - {:b}", address, data);
+    // println!("NR52: {:b}", self.nr52);
     match address {
       NR10 => self.channel1.nrx0 = data,
       NR11 => self.channel1.set_nrx1(data),
-      NR12 => {
-        self.channel1.nrx2 = data;
-        if !self.channel1.is_dac_power_enabled() {
-          self.disable_channel(ChannelNr::Ch1);
-        }
-      }
+      NR12 => self.channel1.nrx2 = data,
       NR13 => self.channel1.nrx3 = data,
-      NR14 => {
-        if get_bit_at(data, 6) {
-          self.enable_channel(ChannelNr::Ch1);
-        }
-        self.channel1.set_nrx4(data);
-        if !self.channel1.is_dac_power_enabled() {
-          self.disable_channel(ChannelNr::Ch1);
-        }
-      }
+      NR14 => self.channel1.set_nrx4(data),
       NR20 => self.channel2.nrx0 = data,
       NR21 => self.channel2.set_nrx1(data),
-      NR22 => {
-        self.channel2.nrx2 = data;
-        if !self.channel2.is_dac_power_enabled() {
-          self.disable_channel(ChannelNr::Ch2);
-        }
-      }
+      NR22 => self.channel2.nrx2 = data,
       NR23 => self.channel2.nrx3 = data,
-      NR24 => {
-        if get_bit_at(data, 6) {
-          self.enable_channel(ChannelNr::Ch2);
-        }
-        self.channel2.set_nrx4(data);
-        if !self.channel2.is_dac_power_enabled() {
-          self.disable_channel(ChannelNr::Ch2);
-        }
-      }
-      NR30 => {
-        self.channel3.nrx0 = data;
-        if !self.channel3.is_dac_power_enabled() {
-          self.disable_channel(ChannelNr::Ch3);
-        }
-      }
+      NR24 => self.channel2.set_nrx4(data),
+      NR30 => self.channel3.nrx0 = data,
       NR31 => self.channel3.set_nrx1(data),
       NR32 => self.channel3.nrx2 = data,
       NR33 => self.channel3.nrx3 = data,
-      NR34 => {
-        if get_bit_at(data, 6) {
-          self.enable_channel(ChannelNr::Ch3);
-        }
-        self.channel3.set_nrx4(data);
-        if !self.channel3.is_dac_power_enabled() {
-          self.disable_channel(ChannelNr::Ch3);
-        }
-      }
+      NR34 => self.channel3.set_nrx4(data),
       NR40 => self.channel4.nrx0 = data,
       NR41 => self.channel4.set_nrx1(data),
-      NR42 => {
-        self.channel4.nrx2 = data;
-        if !self.channel4.is_dac_power_enabled() {
-          self.disable_channel(ChannelNr::Ch4);
-        }
-      }
+      NR42 => self.channel4.nrx2 = data,
       NR43 => self.channel4.nrx3 = data,
-      NR44 => {
-        if get_bit_at(data, 6) {
-          self.enable_channel(ChannelNr::Ch4);
-        }
-        self.channel4.set_nrx4(data);
-        if !self.channel4.is_dac_power_enabled() {
-          self.disable_channel(ChannelNr::Ch4);
-        }
-      }
+      NR44 => self.channel4.set_nrx4(data),
       NR50 => self.nr50 = data,
       NR51 => self.nr51 = data,
       NR52 => self.write_power_control(data),
@@ -187,15 +135,23 @@ impl Apu {
     self.frame_seq.borrow_mut().update();
     if self.channel1.update() {
       self.disable_channel(ChannelNr::Ch1);
+    } else {
+      self.enable_channel(ChannelNr::Ch1);
     }
     if self.channel2.update() {
       self.disable_channel(ChannelNr::Ch2);
+    } else {
+      self.enable_channel(ChannelNr::Ch2);
     }
     if self.channel3.update() {
       self.disable_channel(ChannelNr::Ch3);
+    } else {
+      self.enable_channel(ChannelNr::Ch2);
     }
     if self.channel4.update() {
       self.disable_channel(ChannelNr::Ch4);
+    } else {
+      self.enable_channel(ChannelNr::Ch2);
     }
   }
 

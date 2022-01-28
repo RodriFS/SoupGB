@@ -1,6 +1,7 @@
+use crate::interrupts::GeneralInterrupts;
+
 use super::apu;
 use super::constants::*;
-use super::dispatcher::Dispatcher;
 use super::gpu;
 use super::memory::Memory;
 use super::registers::Registers;
@@ -15,8 +16,9 @@ pub struct Emulator {
   pub registers: Registers,
   pub memory: Memory,
   pub timers: Timers,
+  pub line_buffer: [(u8, u8); SCREEN_WIDTH],
   pub frame_buffer: [u32; SCREEN_WIDTH * SCREEN_HEIGHT],
-  pub dispatcher: Dispatcher,
+  pub interrupts: GeneralInterrupts,
 }
 
 impl Emulator {
@@ -29,8 +31,9 @@ impl Emulator {
       registers: Registers::default(),
       memory: Memory::default(),
       timers: Timers::default(),
+      line_buffer: [(0, 0); SCREEN_WIDTH],
       frame_buffer: [0; SCREEN_WIDTH * SCREEN_HEIGHT],
-      dispatcher: Dispatcher::default(),
+      interrupts: GeneralInterrupts::default(),
     }
   }
 
@@ -51,7 +54,7 @@ impl Emulator {
   }
 
   pub fn take_cycle(&mut self) {
-    Dispatcher::run(self);
+    GeneralInterrupts::run(self);
     gpu::update(self);
     timers::update(self);
     apu::update(self);

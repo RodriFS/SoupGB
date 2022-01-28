@@ -1,6 +1,7 @@
 use super::emulator::Emulator;
 use super::utils::get_bit_at;
 use super::utils::*;
+use super::memory::LcdMode;
 
 #[derive(PartialEq, Debug)]
 pub enum StatCond {
@@ -104,4 +105,60 @@ pub fn request_interrupt(ctx: &mut Emulator, bit: u8) {
     let modified_flag = set_bit_at(interrupt_flags, bit);
     ctx.memory.write(0xff0f, modified_flag);
     ctx.timers.is_halted = false;
+}
+
+
+#[allow(non_camel_case_types)]
+pub enum Action {
+  new_mode(LcdMode),
+  request_interrupt(u8),
+  ime1,
+  reload_tima(bool),
+}
+
+#[derive(Default)]
+pub struct GeneralInterrupts {
+  mode: Option<LcdMode>,
+  request_interrupt: Option<u8>,
+  ime1: bool,
+  reload_tima: bool
+}
+
+impl GeneralInterrupts {
+  pub fn run(ctx: &mut Emulator) {
+    if let Some(mode) = ctx.interrupts.mode {
+      ctx.memory.set_lcd_status(mode);
+      ctx.interrupts.mode = None;
+    }
+
+    if let Some(bit) = ctx.interrupts.request_interrupt {
+      request_interrupt(ctx, bit);
+      ctx.interrupts.request_interrupt = None;
+    }
+
+    if ctx.interrupts.ime1 {
+      ctx.timers.ime = true;
+      ctx.interrupts.ime1 = false;
+    }
+
+    if ctx.interrupts.reload_tima && ctx.memory.get_tima() == 0 {
+      ctx.memory.set_tima(ctx.memory.get_tma());
+      request_interrupt(ctx, Interrupts::Timer as u8);
+      ctx.interrupts.dispatch(Action::reload_tima(false));
+      // ignores tima writes in memory
+      ctx.memory.tima_reloading = true;
+      ctx.interrupts.reload_tima = false;
+    } else {
+      ctx.memory.tima_reloading = false;
+    }
+  }
+
+  pub fn dispatch(&mut self, action: Action) {
+    match action {
+      Action::new_mode(mode) => self.mode = Some(mode),
+      Action::request_interrupt(bit) => self.request_interrupt = Some(bit),
+      Action::ime1 => self.ime1 = true,
+      Action::reload_tima(value) => self.reload_tima = value,
+    }
+  }
 }
