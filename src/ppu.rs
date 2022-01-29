@@ -1,9 +1,11 @@
+use crate::memory::Memory;
+
 use super::constants::*;
 use super::emulator::Emulator;
 use super::memory::Point2D;
 use super::utils::get_bit_at;
 
-struct RenderProps {
+pub struct RenderProps {
   wx: u8,
   wy: u8,
   sx: u8,
@@ -14,12 +16,12 @@ struct RenderProps {
 }
 
 impl RenderProps {
-  fn new(ctx: &mut Emulator) -> Self {
-    let Point2D { x: sx, y: sy } = ctx.memory.background_position();
-    let Point2D { x: wx, y: wy } = ctx.memory.window_position();
-    let palette = ctx.memory.background_palette();
-    let bg_map = ctx.memory.map_select();
-    let ly = ctx.memory.get_ly();
+  pub fn new(memory: &Memory) -> Self {
+    let Point2D { x: sx, y: sy } = memory.background_position();
+    let Point2D { x: wx, y: wy } = memory.window_position();
+    let palette = memory.background_palette();
+    let bg_map = memory.map_select();
+    let ly = memory.get_ly();
     Self {
       wx,
       wy,
@@ -29,6 +31,19 @@ impl RenderProps {
       bg_map,
       ly,
     }
+  }
+
+  fn reload(&mut self, memory: &Memory) -> &Self {
+    let Point2D { x: sx, y: sy } = memory.background_position();
+    let Point2D { x: wx, y: wy } = memory.window_position();
+    self.wx = wx;
+    self.wy = wy;
+    self.sx = sx;
+    self.sy = sy;
+    self.palette = memory.background_palette();
+    self.bg_map = memory.map_select();
+    self.ly = memory.get_ly();
+    self
   }
 }
 
@@ -50,14 +65,22 @@ fn get_color(pixel: &u8, palette: &u8) -> u32 {
 }
 
 fn make_pixels(data1: u8, data2: u8) -> Vec<u8> {
-  let hi_byte = (0..8).rev().map(|i| get_bit_at(data2, i) as u8);
-  let low_byte = (0..8).rev().map(|i| get_bit_at(data1, i) as u8);
-  hi_byte.zip(low_byte).map(|(hi, lo)| hi << 1 | lo).collect()
+  (0..8).rev().map(|i| {
+    let hi = get_bit_at(data2, i) as u8;
+    let lo = get_bit_at(data1, i) as u8;
+    hi << 1 | lo
+  }).collect()
 }
 
-fn get_tile_ids(ctx: &mut Emulator, bg_mem: u16) -> (u16, u16) {
-  let tiledata_region = ctx.memory.bg_tile_data_select();
-  let data = ctx.memory.read_unchecked(bg_mem);
+#[test]
+fn make_pixels_test() {
+  let result = make_pixels(0b1111_1111, 0b1111_1111);
+  assert_eq!(result, vec![0, 0, 0, 0, 0, 0, 3, 2]);
+}
+
+fn get_tile_ids(memory: &Memory, bg_mem: u16) -> (u16, u16) {
+  let tiledata_region = memory.bg_tile_data_select();
+  let data = memory.read_unchecked(bg_mem);
   let tile_id = match tiledata_region {
     0x8000 => data as u16 * 16,
     0x8800 => ((data as i8) as u16).wrapping_add(128) * 16,
@@ -90,25 +113,27 @@ fn get_y_flip(attributes: u8) -> bool {
   get_bit_at(attributes, 6)
 }
 
-fn get_sprites_palette(ctx: &mut Emulator, attributes: u8) -> u8 {
+fn get_sprites_palette(memory: &Memory, attributes: u8) -> u8 {
   if get_bit_at(attributes, 4) {
-    return ctx.memory.read_unchecked(0xff49);
+    return memory.read_unchecked(0xff49);
   }
-  ctx.memory.read_unchecked(0xff48)
+  memory.read_unchecked(0xff48)
 }
 
 fn has_priority(attributes: u8) -> bool {
   !get_bit_at(attributes, 7)
 }
 
-fn make_tiles(ctx: &mut Emulator, bg_mem: u16, pixel_row: u16) -> Vec<u8> {
-  let (tile1, tile2) = get_tile_ids(ctx, bg_mem);
-  let data1 = ctx.memory.read_unchecked(pixel_row + tile1);
-  let data2 = ctx.memory.read_unchecked(pixel_row + tile2);
+fn make_tiles(memory: &Memory, bg_mem: u16, pixel_row: u16) -> Vec<u8> {
+  let (tile1, tile2) = get_tile_ids(memory, bg_mem);
+  let data1 = memory.read_unchecked(pixel_row + tile1);
+  let data2 = memory.read_unchecked(pixel_row + tile2);
   make_pixels(data1, data2)
 }
 
-fn render_background(ctx: &mut Emulator, buffer: &mut [(u8, u8)], props: &RenderProps) {
+
+
+fn render_background(ctx: &Memory, buffer: &mut [(u8, u8)], props: &RenderProps) {
   let y_pos = get_y_pos(false, props.sy, props.ly);
   let from = props.bg_map + (y_pos as u16 / 8) * 32;
   let to = from + 32;
@@ -124,13 +149,24 @@ fn render_background(ctx: &mut Emulator, buffer: &mut [(u8, u8)], props: &Render
     })
 }
 
-fn render_window(ctx: &mut Emulator, buffer: &mut [(u8, u8)], props: &RenderProps) {
+#[test]
+fn render_background_test() {
+  let ctx = Emulator::default();
+  let mut buffer = [(0, 0); SCREEN_WIDTH];
+  let props = RenderProps::new(&ctx.memory);
+
+  render_background(&ctx.memory, &mut buffer, &props);
+  let result = [(0, 252); SCREEN_WIDTH];
+  assert_eq!(result, buffer)
+}
+
+fn render_window(memory: &Memory, buffer: &mut [(u8, u8)], props: &RenderProps) {
   let y_pos = get_y_pos(false, props.wy, props.ly);
   let from = props.bg_map + (y_pos as u16 / 8) * 32;
   let to = from + 32;
   let pixel_row = (y_pos % 8) * 2;
   (from..to)
-    .flat_map(|bg_mem| make_tiles(ctx, bg_mem, pixel_row as u16))
+    .flat_map(|bg_mem| make_tiles(memory, bg_mem, pixel_row as u16))
     .enumerate()
     .for_each(|(i, pixel)| {
       let x_pos = get_x_pos(true, 0, props.wx, i as u8) as usize;
@@ -140,21 +176,19 @@ fn render_window(ctx: &mut Emulator, buffer: &mut [(u8, u8)], props: &RenderProp
     })
 }
 
-fn render_sprites(ctx: &mut Emulator, buffer: &mut [(u8, u8)]) {
-  let size = ctx.memory.sprite_size();
-  let current_line = ctx.memory.get_ly();
+fn render_sprites(memory: &Memory, buffer: &mut [(u8, u8)]) {
+  let size = memory.sprite_size();
+  let current_line = memory.get_ly();
   for sprite_pos in (0..160).step_by(4) {
-    let y_pos = ctx
-      .memory
+    let y_pos = memory
       .read_unchecked(0xfe00 + sprite_pos)
       .wrapping_sub(16);
-    let x_pos = ctx
-      .memory
+    let x_pos = memory
       .read_unchecked(0xfe00 + sprite_pos + 1)
       .wrapping_sub(8);
-    let tile_location = ctx.memory.read_unchecked(0xfe00 + sprite_pos + 2);
-    let attributes = ctx.memory.read_unchecked(0xfe00 + sprite_pos + 3);
-    let palette = get_sprites_palette(ctx, attributes);
+    let tile_location = memory.read_unchecked(0xfe00 + sprite_pos + 2);
+    let attributes = memory.read_unchecked(0xfe00 + sprite_pos + 3);
+    let palette = get_sprites_palette(memory, attributes);
     let mut pixel_row = current_line.wrapping_sub(y_pos);
     if current_line >= y_pos && current_line < (y_pos + size) {
       if get_y_flip(attributes) {
@@ -162,8 +196,8 @@ fn render_sprites(ctx: &mut Emulator, buffer: &mut [(u8, u8)]) {
         pixel_row = !pixel_row;
       }
       let data_address = (0x8000 + (tile_location as u16 * 16)) + pixel_row as u16 * 2;
-      let data1 = ctx.memory.read_unchecked(data_address);
-      let data2 = ctx.memory.read_unchecked(data_address + 1);
+      let data1 = memory.read_unchecked(data_address);
+      let data2 = memory.read_unchecked(data_address + 1);
       let mut pixels = make_pixels(data1, data2);
       if get_x_flip(attributes) {
         pixels.reverse();
@@ -182,23 +216,30 @@ fn render_sprites(ctx: &mut Emulator, buffer: &mut [(u8, u8)]) {
 }
 
 pub fn draw_scan_line(ctx: &mut Emulator) {
+  let memory = &ctx.memory;
   let mut buffer = ctx.line_buffer;
-  let render_props = RenderProps::new(ctx);
-  let window_enabled = ctx.memory.window_enabled() && render_props.wy <= render_props.ly;
-  if ctx.memory.background_enabled() {
-    render_background(ctx, &mut buffer, &render_props);
+  let render_props = ctx.render_props.reload(memory);
+  let window_enabled = memory.window_enabled() && render_props.wy <= render_props.ly;
+  if memory.background_enabled() {
+    render_background(memory, &mut buffer, &render_props);
   }
   if window_enabled {
-    render_window(ctx, &mut buffer, &render_props);
+    render_window(memory, &mut buffer, &render_props);
   }
-  if ctx.memory.sprite_enabled() {
-    render_sprites(ctx, &mut buffer);
+  if memory.sprite_enabled() {
+    render_sprites(memory, &mut buffer);
   }
 
   let current_line = render_props.ly as usize * SCREEN_WIDTH;
   buffer
     .iter()
-    .map(|(pixel, palette)| get_color(&pixel, &palette))
     .enumerate()
-    .for_each(|(n, pixel)| ctx.frame_buffer[current_line + n] = pixel)
+    .for_each(|(n, (pixel, palette))| {
+      let pixel = get_color(&&pixel, &&palette);
+      if ctx.active_buffer {
+        ctx.frame_buffer[current_line + n] = pixel
+      } else {
+        ctx.background_buffer[current_line + n] = pixel
+      }
+    })
 }

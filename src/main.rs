@@ -51,8 +51,15 @@ pub fn main() {
         cpu::update(&mut emulator);
         joypad::update(&mut emulator, &window);
         if emulator.memory.get_ly() == 0x90 && emulator.memory.lcd_mode() == LcdMode::HBlank {
-            match window.update_with_buffer(&emulator.frame_buffer, SCREEN_WIDTH, SCREEN_HEIGHT) {
-                Ok(_) => {}
+            let buffer = if emulator.active_buffer {
+                &emulator.frame_buffer
+            } else {
+                &emulator.background_buffer
+            };
+            match window.update_with_buffer(buffer, SCREEN_WIDTH, SCREEN_HEIGHT) {
+                Ok(_) => {
+                    emulator.active_buffer = !emulator.active_buffer;
+                }
                 Err(e) => {
                     println!("{}", e);
                     std::process::exit(0);
