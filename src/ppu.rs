@@ -236,10 +236,6 @@ pub fn draw_scan_line(ctx: &mut Emulator) {
     .enumerate()
     .for_each(|(n, (pixel, palette))| {
       let pixel = get_color(&&pixel, &&palette);
-      if ctx.active_buffer {
-        ctx.frame_buffer[current_line + n] = pixel
-      } else {
-        ctx.background_buffer[current_line + n] = pixel
-      }
+      ctx.frame_buffer[current_line + n] = pixel
     })
 }

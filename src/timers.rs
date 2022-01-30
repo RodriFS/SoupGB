@@ -1,9 +1,8 @@
-use super::interrupts::Action;
 use super::emulator::Emulator;
+use super::interrupts::Action;
 use std::fmt;
 
 pub struct Timers {
-    pub divider_frequency: u32,
     pub scan_line_counter: u32,
     pub ime: bool,
     pub is_halted: bool,
@@ -12,10 +11,8 @@ pub struct Timers {
 
 impl Timers {
     pub fn default() -> Self {
-        let divider_frequency = 16384;
         Self {
             scan_line_counter: 0,
-            divider_frequency,
             ime: false,
             is_halted: false,
             halt_bug: false,

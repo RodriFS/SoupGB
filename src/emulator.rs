@@ -18,8 +18,6 @@ pub struct Emulator {
   pub memory: Memory,
   pub timers: Timers,
   pub line_buffer: [(u8, u8); SCREEN_WIDTH],
-  pub active_buffer: bool,
-  pub background_buffer: [u32; SCREEN_WIDTH * SCREEN_HEIGHT],
   pub frame_buffer: [u32; SCREEN_WIDTH * SCREEN_HEIGHT],
   pub interrupts: GeneralInterrupts,
   pub render_props: RenderProps,
@@ -37,8 +35,6 @@ impl Emulator {
       memory: Memory::default(),
       timers: Timers::default(),
       line_buffer: [(0, 0); SCREEN_WIDTH],
-      active_buffer: true,
-      background_buffer: [0; SCREEN_WIDTH * SCREEN_HEIGHT],
       frame_buffer: [0; SCREEN_WIDTH * SCREEN_HEIGHT],
       interrupts: GeneralInterrupts::default(),
       render_props: RenderProps::new(&memory)
